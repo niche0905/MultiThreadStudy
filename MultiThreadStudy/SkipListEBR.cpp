@@ -706,8 +706,10 @@ public:
 
 std::array<std::vector<HISTORY>, 16> history;
 
-void worker_check(int num_threads, int thread_id)
+void worker_check(int num_threads, int _thread_id)
 {
+	thread_id = _thread_id;
+
 	for (int i = 0; i < NUM_TEST / num_threads; ++i) {
 		int op = rand() % 3;
 		switch (op) {
@@ -773,8 +775,10 @@ void check_history(int num_threads)
 }
 
 // 벤치마크 코드
-void benchmark(const int num_thread)
+void benchmark(const int num_thread, int _thread_id)
 {
+	thread_id = _thread_id;
+
 	int key;
 
 	for (int i = 0; i < NUM_TEST / num_thread; i++) {
@@ -826,7 +830,7 @@ int main()
 			std::vector<std::thread> tv;
 			auto start_t = high_resolution_clock::now();
 			for (int i = 0; i < n; ++i) {
-				tv.emplace_back(benchmark, n);
+				tv.emplace_back(benchmark, n, i);
 			}
 			for (auto& th : tv)
 				th.join();
