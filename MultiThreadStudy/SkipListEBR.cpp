@@ -301,10 +301,75 @@ public:
 	}
 };
 
+class EBR_SK_LF_NODE;		// EBR SkipList LockFree Node 전방 선언
+
 thread_local int thread_id;
 thread_local std::queue<EBR_SK_LF_NODE*> node_free_queue;
 
-class EBR_SK_LF_NODE;		// EBR SkipList LockFree Node 전방 선언
+class EBR_SK_SPTR			// SkipList 합성 포인터 (LockFree(CAS)를 위한)
+{
+private:
+	std::atomic<long long> sptr;
+
+public:
+	EBR_SK_SPTR() : sptr{ 0 } {}
+
+	void set_ptr(EBR_SK_LF_NODE* ptr)
+	{
+		sptr = reinterpret_cast<long long>(ptr);
+	}
+
+	EBR_SK_LF_NODE* get_ptr()
+	{
+		long long p = sptr.load();
+		return reinterpret_cast<EBR_SK_LF_NODE*>(p & 0xFFFFFFFFFFFFFFFE);
+	}
+
+	EBR_SK_LF_NODE* get_ptr(bool* removed)
+	{
+		long long p = sptr.load();
+		*removed = (1 == (p & 1));	// p의 최하위 1비트로 removed를 판단
+		return reinterpret_cast<EBR_SK_LF_NODE*>(p & 0xFFFFFFFFFFFFFFFE);
+	}
+
+	bool CAS(EBR_SK_LF_NODE* old_p, EBR_SK_LF_NODE* new_p, bool old_m, bool new_m)
+	{
+		long long old_v = reinterpret_cast<long long>(old_p);
+		if (true == old_m) old_v = old_v | 1;
+		else old_v = old_v & 0xFFFFFFFFFFFFFFFE;	// 굳이 필요한 작업인지는 잘 모르겠습니다
+
+		long long new_v = reinterpret_cast<long long>(new_p);
+		if (true == new_m) new_v = new_v | 1;
+		else new_v = new_v & 0xFFFFFFFFFFFFFFFE;
+
+		return std::atomic_compare_exchange_strong(&sptr, &old_v, new_v);
+		// &sptr 위치에 있는 값을 old_v와 비교 후 같다면 new_v로 달라서 바꾸지 못했으면 false를 반환 후 &sptr에 있던 값은 old_v로 확인 가능
+	}
+};
+
+class EBR_SK_LF_NODE		// SkipList LockFree Node 
+{
+public:
+	int key;
+	EBR_SK_SPTR* volatile next[MAX_TOP + 1] = {};	// 0층부터 9층(MAX_TOP)까지 있음
+	int top_level;	// 현재 노드의 최상층 (지름길 존재하는 층)
+	int ebr_number;
+
+public:
+	EBR_SK_LF_NODE(int x, int top) : key{ x }, top_level{ top }, ebr_number{ 0 }
+	{
+		for (int i = 0; i <= top_level; ++i) {
+			next[i] = new EBR_SK_SPTR();
+		}
+	}
+
+	~EBR_SK_LF_NODE()
+	{
+		for (int i = 0; i <= top_level; ++i) {
+			delete next[i];
+		}
+	}
+};
 
 class EBR
 {
@@ -379,71 +444,6 @@ public:
 		p->key = x;
 		p->top_level = top;
 		return p;
-	}
-};
-
-class EBR_SK_SPTR			// SkipList 합성 포인터 (LockFree(CAS)를 위한)
-{
-private:
-	std::atomic<long long> sptr;
-
-public:
-	EBR_SK_SPTR() : sptr{ 0 } {}
-
-	void set_ptr(EBR_SK_LF_NODE* ptr)
-	{
-		sptr = reinterpret_cast<long long>(ptr);
-	}
-
-	EBR_SK_LF_NODE* get_ptr()
-	{
-		long long p = sptr.load();
-		return reinterpret_cast<EBR_SK_LF_NODE*>(p & 0xFFFFFFFFFFFFFFFE);
-	}
-
-	EBR_SK_LF_NODE* get_ptr(bool* removed)
-	{
-		long long p = sptr.load();
-		*removed = (1 == (p & 1));	// p의 최하위 1비트로 removed를 판단
-		return reinterpret_cast<EBR_SK_LF_NODE*>(p & 0xFFFFFFFFFFFFFFFE);
-	}
-
-	bool CAS(EBR_SK_LF_NODE* old_p, EBR_SK_LF_NODE* new_p, bool old_m, bool new_m)
-	{
-		long long old_v = reinterpret_cast<long long>(old_p);
-		if (true == old_m) old_v = old_v | 1;
-		else old_v = old_v & 0xFFFFFFFFFFFFFFFE;	// 굳이 필요한 작업인지는 잘 모르겠습니다
-
-		long long new_v = reinterpret_cast<long long>(new_p);
-		if (true == new_m) new_v = new_v | 1;
-		else new_v = new_v & 0xFFFFFFFFFFFFFFFE;
-
-		return std::atomic_compare_exchange_strong(&sptr, &old_v, new_v);
-		// &sptr 위치에 있는 값을 old_v와 비교 후 같다면 new_v로 달라서 바꾸지 못했으면 false를 반환 후 &sptr에 있던 값은 old_v로 확인 가능
-	}
-};
-
-class EBR_SK_LF_NODE		// SkipList LockFree Node 
-{
-public:
-	int key;
-	EBR_SK_SPTR* volatile next[MAX_TOP + 1] = {};	// 0층부터 9층(MAX_TOP)까지 있음
-	int top_level;	// 현재 노드의 최상층 (지름길 존재하는 층)
-	int ebr_number;
-
-public:
-	EBR_SK_LF_NODE(int x, int top) : key{ x }, top_level{ top }, ebr_number{ 0 }
-	{
-		for (int i = 0; i <= top_level; ++i) {
-			next[i] = new EBR_SK_SPTR();
-		}
-	}
-
-	~EBR_SK_LF_NODE()
-	{
-		for (int i = 0; i <= top_level; ++i) {
-			delete next[i];
-		}
 	}
 };
 
