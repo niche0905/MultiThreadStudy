@@ -204,7 +204,7 @@ public:
 	}
 };
 
-#define MY_SET DIV_SET
+#define MY_SET LF_SET
 MY_SET my_set;
 
 const int NUM_TEST = 4000000;
