@@ -204,7 +204,7 @@ public:
 	}
 };
 
-#define MY_SET LF_SET
+#define MY_SET DIV_SET
 MY_SET my_set;
 
 const int NUM_TEST = 4000000;
@@ -338,7 +338,7 @@ int main()
 
 	std::cout << "Benchmark...\n\n";
 
-	std::cout << "[Lock Free]\n";
+	std::cout << "[Division Set]\n";
 	{
 		for (int n = 1; n <= MAX_THREADS; n = n * 2) {
 			my_set.clear();
