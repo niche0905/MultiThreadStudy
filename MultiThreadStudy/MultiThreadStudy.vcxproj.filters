@@ -9,5 +9,8 @@
     <ClCompile Include="SkipListEBR.cpp">
       <Filter>SkipList</Filter>
     </ClCompile>
+    <ClCompile Include="DivisionSet.cpp">
+      <Filter>SkipList</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
