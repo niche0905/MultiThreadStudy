@@ -556,8 +556,8 @@ public:
 
 			// 이미 존재한다면
 			if (true == found) {
-				ebr.End_epoch();
 				ebr.Reuse(new_node);
+				ebr.End_epoch();
 
 				return false;
 			}
