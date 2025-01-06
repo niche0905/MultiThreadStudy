@@ -568,7 +568,7 @@ public:
 
 			// 최하층을 내가 추가했으면(CAS에 성공했으면 내가 추가한 것임)
 			if (false == prevs[0]->next[0]->CAS(currs[0], new_node, false, false)) {	// 어떠한 이유로 CAS에 실패하였으므로 Find 부터 다시
-				delete new_node;
+				// delete new_node;
 				continue;
 			}
 
