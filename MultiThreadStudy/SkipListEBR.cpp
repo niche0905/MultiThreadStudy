@@ -1,3 +1,9 @@
+/*--------------------------------------------------------------------------------------------------
+	Skip List에 EBR을 적용하는 것 (LF Skip List와 EBR Set을 참고)
+
+	Notion : https://delicate-magic-460.notion.site/EBR-Skip-List-16b893a56e588084bd8bffd50e725921
+--------------------------------------------------------------------------------------------------*/
+
 #include <iostream>
 #include <thread>
 #include <chrono>
