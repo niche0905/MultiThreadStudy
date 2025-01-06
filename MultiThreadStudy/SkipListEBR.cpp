@@ -526,6 +526,9 @@ public:
 				prevs[i] = currs[i];
 				currs[i] = succ;
 			}
+
+			// TODO : Reuse를 하는 부분이 추가가 필요해 보인다 (Reuse를 호출할 땐 연결리스트에서 물리적으로 삭제가 완료되었을 때)
+			//		  연결리스트에서 모든 층이 제거되었음을 어떻게 판단하지?
 		}
 
 		return (currs[0]->key == x);
@@ -540,6 +543,7 @@ public:
 			++lv;
 		}
 
+		// TODO : 아래의 코드를 ebr의 Get_node로 바꾸어야 하지 않나?
 		EBR_SK_LF_NODE* new_node = new EBR_SK_LF_NODE{ x, lv };
 
 		ebr.Start_epoch();
@@ -557,7 +561,6 @@ public:
 
 				return false;
 			}
-
 
 			for (int i = 0; i <= lv; ++i) {
 				new_node->next[i]->set_ptr(currs[i]);
@@ -624,7 +627,7 @@ public:
 
 				// 내가 최하층 마킹(삭제)를 성공하면 내가 삭제한 것!
 				if (marking) {
-					ebr.Reuse(del_node);
+					//ebr.Reuse(del_node);	// 이거 자체가 오류? marking에만 성공했다고 연결리스트에서 제거된건 아니기 때문
 					Find(x, prevs, currs);	// 연결리스트 정리 작업용
 					ebr.End_epoch();
 
