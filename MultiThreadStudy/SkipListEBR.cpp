@@ -471,6 +471,8 @@ public:
 			delete p;
 		}
 
+		ebr.Clear();
+
 		// 모두 삭제 후 head의 next는 tail로 설정
 		Init();
 	}
@@ -497,8 +499,16 @@ public:
 				// 순회 중 삭제되었다면 물리적으로 삭제 시도
 				while (true == removed) {
 					// 내가 삭제하지 못했다면 retry
+					EBR_SK_LF_NODE* delete_node = currs[i];
 					if (false == prevs[i]->next[i].CAS(currs[i], succ, false, false)) {
 						goto retry;
+					}
+
+					// 내가 연결리스트 구조를 변경했다(삭제했다)
+					// 그런 동시에 최하위층 구조를 변경했다(상위 층은 이미 제거됬을 것이라 판단)
+					if (i == 0) {
+						// 재사용 하도록 EBR 컨테이너로 이양
+						ebr.Reuse(delete_node);
 					}
 
 					// 내가 삭제했다면 이어서 탐색
@@ -532,7 +542,7 @@ public:
 		}
 
 		// TODO : 아래의 코드를 ebr의 Get_node로 바꾸어야 하지 않나?
-		EBR_SK_LF_NODE* new_node = new EBR_SK_LF_NODE{ x, lv };
+		EBR_SK_LF_NODE* new_node = ebr.Get_node(x, lv);
 
 		ebr.Start_epoch();
 
@@ -688,6 +698,7 @@ public:
 	}
 };
 
+//#define MY_SET LF_SK_SET
 #define MY_SET EBR_LF_SK_SET
 MY_SET my_set;
 
