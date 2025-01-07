@@ -351,23 +351,17 @@ class EBR_SK_LF_NODE		// SkipList LockFree Node
 {
 public:
 	int key;
-	EBR_SK_SPTR* volatile next[MAX_TOP + 1] = {};	// 0층부터 9층(MAX_TOP)까지 있음
+	EBR_SK_SPTR next[MAX_TOP + 1] = {};	// 0층부터 9층(MAX_TOP)까지 있음
 	int top_level;	// 현재 노드의 최상층 (지름길 존재하는 층)
 	int ebr_number;
 
 public:
 	EBR_SK_LF_NODE(int x, int top) : key{ x }, top_level{ top }, ebr_number{ 0 }
 	{
-		for (int i = 0; i <= top_level; ++i) {
-			next[i] = new EBR_SK_SPTR();
-		}
 	}
 
 	~EBR_SK_LF_NODE()
 	{
-		for (int i = 0; i <= top_level; ++i) {
-			delete next[i];
-		}
 	}
 };
 
@@ -464,16 +458,16 @@ public:
 	void Init()
 	{
 		for (int i = 0; i <= MAX_TOP; ++i) {
-			head.next[i]->set_ptr(&tail);
+			head.next[i].set_ptr(&tail);
 		}
 	}
 
 	void Clear()
 	{
 		// 0층으로 순회하면서 삭제
-		while (head.next[0]->get_ptr() != &tail) {
-			auto p = head.next[0]->get_ptr();
-			head.next[0]->set_ptr(head.next[0]->get_ptr()->next[0]->get_ptr());
+		while (head.next[0].get_ptr() != &tail) {
+			auto p = head.next[0].get_ptr();
+			head.next[0].set_ptr(head.next[0].get_ptr()->next[0].get_ptr());
 			delete p;
 		}
 
@@ -494,22 +488,22 @@ public:
 				prevs[i] = prevs[i + 1];
 			}
 
-			currs[i] = prevs[i]->next[i]->get_ptr();
+			currs[i] = prevs[i]->next[i].get_ptr();
 
 			while (true) {
 				bool removed = false;
-				EBR_SK_LF_NODE* succ = currs[i]->next[i]->get_ptr(&removed);
+				EBR_SK_LF_NODE* succ = currs[i]->next[i].get_ptr(&removed);
 
 				// 순회 중 삭제되었다면 물리적으로 삭제 시도
 				while (true == removed) {
 					// 내가 삭제하지 못했다면 retry
-					if (false == prevs[i]->next[i]->CAS(currs[i], succ, false, false)) {
+					if (false == prevs[i]->next[i].CAS(currs[i], succ, false, false)) {
 						goto retry;
 					}
 
 					// 내가 삭제했다면 이어서 탐색
 					currs[i] = succ;
-					succ = currs[i]->next[i]->get_ptr(&removed);
+					succ = currs[i]->next[i].get_ptr(&removed);
 				}
 
 				// 탐색한 curr가 찾으려는 값 이상이라면 다음층 또는 종결
@@ -557,11 +551,11 @@ public:
 			}
 
 			for (int i = 0; i <= lv; ++i) {
-				new_node->next[i]->set_ptr(currs[i]);
+				new_node->next[i].set_ptr(currs[i]);
 			}
 
 			// 최하층을 내가 추가했으면(CAS에 성공했으면 내가 추가한 것임)
-			if (false == prevs[0]->next[0]->CAS(currs[0], new_node, false, false)) {	// 어떠한 이유로 CAS에 실패하였으므로 Find 부터 다시
+			if (false == prevs[0]->next[0].CAS(currs[0], new_node, false, false)) {	// 어떠한 이유로 CAS에 실패하였으므로 Find 부터 다시
 				// delete new_node;
 				continue;
 			}
@@ -569,7 +563,7 @@ public:
 			// 내가 추가했으면 위에 층들도 책임지고 연결
 			for (int i = 1; i <= lv; ++i) {
 				while (true) {
-					if (true == prevs[i]->next[i]->CAS(currs[i], new_node, false, false))
+					if (true == prevs[i]->next[i].CAS(currs[i], new_node, false, false))
 						break;
 
 					Find(x, prevs, currs);
@@ -606,18 +600,18 @@ public:
 			// 최상층 부터 remove 진행
 			for (int i = lv; i > 0; --i) {
 				bool removed = false;
-				EBR_SK_LF_NODE* succ = del_node->next[i]->get_ptr(&removed);
+				EBR_SK_LF_NODE* succ = del_node->next[i].get_ptr(&removed);
 
 				// 삭제 되었는지 확인하면서 삭제 시도
 				while (false == removed) {	// 삭제가 안되었다면 삭제 시도 (CAS)
-					del_node->next[i]->CAS(succ, succ, false, true);	// CAS의 성공을 확인하지 않아도 누군가 Removed 했으면 다음 아래 층으로 이동하기 위해
-					succ = del_node->next[i]->get_ptr(&removed);
+					del_node->next[i].CAS(succ, succ, false, true);	// CAS의 성공을 확인하지 않아도 누군가 Removed 했으면 다음 아래 층으로 이동하기 위해
+					succ = del_node->next[i].get_ptr(&removed);
 				}
 			}
 
-			EBR_SK_LF_NODE* succ = del_node->next[0]->get_ptr();
+			EBR_SK_LF_NODE* succ = del_node->next[0].get_ptr();
 			while (true) {
-				bool marking = del_node->next[0]->CAS(succ, succ, false, true);
+				bool marking = del_node->next[0].CAS(succ, succ, false, true);
 
 				// 내가 최하층 마킹(삭제)를 성공하면 내가 삭제한 것!
 				if (marking) {
@@ -629,7 +623,7 @@ public:
 				}
 
 				bool removed = false;
-				succ = del_node->next[0]->get_ptr(&removed);
+				succ = del_node->next[0].get_ptr(&removed);
 				// 제거가 되었는데 나는 CAS에 실패했다 (다른놈이 마킹에 성공한 것)
 				if (true == removed) {
 					ebr.End_epoch();
@@ -658,15 +652,15 @@ public:
 				prevs[i] = prevs[i + 1];
 			}
 
-			currs[i] = prevs[i]->next[i]->get_ptr();
+			currs[i] = prevs[i]->next[i].get_ptr();
 
 			while (true)
 			{
 				bool removed = false;
-				EBR_SK_LF_NODE* succ = currs[i]->next[i]->get_ptr(&removed);
+				EBR_SK_LF_NODE* succ = currs[i]->next[i].get_ptr(&removed);
 				while (true == removed) {
 					currs[i] = succ;
-					succ = currs[i]->next[i]->get_ptr(&removed);
+					succ = currs[i]->next[i].get_ptr(&removed);
 				}
 
 				if (currs[i]->key >= x)
@@ -683,18 +677,18 @@ public:
 
 	void Print20()
 	{
-		auto p = head.next[0]->get_ptr();
+		auto p = head.next[0].get_ptr();
 		for (int i = 0; i < 20; ++i) {
 			if (p == &tail) break;
 			std::cout << p->key << ", ";
-			p = p->next[0]->get_ptr();
+			p = p->next[0].get_ptr();
 		}
 
 		std::cout << std::endl;
 	}
 };
 
-#define MY_SET LF_SK_SET
+#define MY_SET EBR_LF_SK_SET
 MY_SET my_set;
 
 
