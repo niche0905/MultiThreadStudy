@@ -698,8 +698,8 @@ public:
 	}
 };
 
-#define MY_SET LF_SK_SET	// 880까지 메모리 찍음
-//#define MY_SET EBR_LF_SK_SET
+//#define MY_SET LF_SK_SET	// 880까지 메모리 찍음
+#define MY_SET EBR_LF_SK_SET	// 288을 넘지 않음
 MY_SET my_set;
 
 
