@@ -524,9 +524,6 @@ public:
 				prevs[i] = currs[i];
 				currs[i] = succ;
 			}
-
-			// TODO : Reuse를 하는 부분이 추가가 필요해 보인다 (Reuse를 호출할 땐 연결리스트에서 물리적으로 삭제가 완료되었을 때)
-			//		  연결리스트에서 모든 층이 제거되었음을 어떻게 판단하지?
 		}
 
 		return (currs[0]->key == x);
@@ -541,7 +538,6 @@ public:
 			++lv;
 		}
 
-		// TODO : 아래의 코드를 ebr의 Get_node로 바꾸어야 하지 않나?
 		EBR_SK_LF_NODE* new_node = ebr.Get_node(x, lv);
 
 		ebr.Start_epoch();
