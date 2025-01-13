@@ -829,7 +829,10 @@ int main()
 	}
 
 	// 실제 성능 측정
+	for (int j = 0; j < 100; ++j)
 	{
+		std::cout << "Case #" << j + 1 << "\n";
+
 		for (int n = 1; n <= MAX_THREAD; n = n * 2) {
 			std::vector<std::thread> tv;
 			auto start_t = high_resolution_clock::now();
