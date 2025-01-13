@@ -441,6 +441,9 @@ public:
 		node_free_queue.pop();
 		p->key = x;
 		p->top_level = top;
+		for (int i = 0; i <= MAX_TOP; ++i) {
+			p->next[i].set_ptr(0);
+		}
 		return p;
 	}
 };
