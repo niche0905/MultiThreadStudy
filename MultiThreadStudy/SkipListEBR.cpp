@@ -531,6 +531,8 @@ public:
 
 	bool Add(int x)
 	{
+		ebr.Start_epoch();
+
 		// 생성할 노드의 레벨 (코인 토스)
 		int lv = 0;
 		for (int i = 0; i < MAX_TOP; ++i) {
@@ -539,8 +541,6 @@ public:
 		}
 
 		EBR_SK_LF_NODE* new_node = ebr.Get_node(x, lv);
-
-		ebr.Start_epoch();
 
 		while (true) {
 			EBR_SK_LF_NODE* prevs[MAX_TOP + 1];
