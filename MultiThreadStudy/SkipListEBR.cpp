@@ -309,7 +309,11 @@ thread_local std::queue<EBR_SK_LF_NODE*> node_free_queue;
 class EBR_SK_SPTR			// SkipList 합성 포인터 (LockFree(CAS)를 위한)
 {
 private:
-	std::atomic<long long> sptr;
+	union
+	{
+		std::atomic<long long> sptr;
+		EBR_SK_LF_NODE* ptr;
+	};
 
 public:
 	EBR_SK_SPTR() : sptr{ 0 } {}
