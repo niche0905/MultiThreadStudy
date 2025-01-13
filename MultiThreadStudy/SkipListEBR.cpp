@@ -800,6 +800,8 @@ void benchmark(const int num_thread, int _thread_id)
 			exit(-1);
 		}
 	}
+
+	ebr.Clear();	// 이것이 메모리 릭이였다 => thread_local이여서 clear가 되었음
 }
 
 
