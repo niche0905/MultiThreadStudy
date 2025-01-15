@@ -383,6 +383,8 @@ public:
 					std::cout << i << "\n";
 			}
 			std::cout << "top level : " << top << "\n";
+			std::cout << "Trouble Node : " << x << "\n";
+			std::cout << "Ex Value : " << key << "\n";
 		}
 		// Add 에서 Reuse 하는 경우 removed가 초기화 되지 않는다...
 		// Add를 수정했음에도 ERROR가 검출된다
@@ -629,7 +631,7 @@ public:
 						break;
 
 					Find(x, prevs, currs);
-					new_node->next[i].set_ptr(currs[i]);	// 교재에는 버그로 없다 -> 없으면 EBR에서 오류 // 하지만 지금은 있으면 안돌아가기에 주석 처리
+					//new_node->next[i].set_ptr(currs[i]);	// 교재에는 버그로 없다 -> 없으면 EBR에서 오류 // 하지만 지금은 있으면 안돌아가기에 주석 처리
 				}
 			}
 
