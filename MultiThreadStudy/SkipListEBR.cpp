@@ -356,16 +356,45 @@ class EBR_SK_LF_NODE		// SkipList LockFree Node
 public:
 	int key;
 	EBR_SK_SPTR next[MAX_TOP + 1] = {};	// 0층부터 9층(MAX_TOP)까지 있음
+	bool removed[MAX_TOP + 1] = {};		// 연결리스트에서 실제로 제거(배제)되었는지
 	int top_level;	// 현재 노드의 최상층 (지름길 존재하는 층)
 	int ebr_number;
 
 public:
 	EBR_SK_LF_NODE(int x, int top) : key{ x }, top_level{ top }, ebr_number{ 0 }
 	{
+		for (int i = top + 1; i <= MAX_TOP; ++i) {
+			removed[i] = true;
+		}
 	}
 
 	~EBR_SK_LF_NODE()
 	{
+	}
+
+	void Reset(int x, int top)
+	{
+		key = x;
+		top_level = top;
+		ebr_number = 0;
+
+		// 아래 반복문 하나는 최적화 할 때 주석처리 해야할 과정
+		for (int i = 0; i <= MAX_TOP; ++i) {
+			next[i].set_ptr(0);
+		}
+
+		for (int i = 0; i <= top; ++i) {
+			removed[i] = false;
+		}
+	}
+
+	bool All_Removed()
+	{
+		for (int i = 0; i <= MAX_TOP; ++i)
+			if (not removed[i])
+				return false;
+
+		return true;
 	}
 };
 
@@ -439,11 +468,7 @@ public:
 
 		// 재활용 가능한 노드가 있다 (찾았다)
 		node_free_queue.pop();
-		p->key = x;
-		p->top_level = top;
-		for (int i = 0; i <= MAX_TOP; ++i) {
-			p->next[i].set_ptr(0);
-		}
+		p->Reset(x, top);
 		return p;
 	}
 };
@@ -510,10 +535,10 @@ public:
 					if (false == prevs[i]->next[i].CAS(currs[i], succ, false, false)) {
 						goto retry;
 					}
+					delete_node->removed[i] = true;
 
-					// 내가 연결리스트 구조를 변경했다(삭제했다)
-					// 그런 동시에 최하위층 구조를 변경했다(상위 층은 이미 제거됬을 것이라 판단)
-					if (i == 0) {
+					// 모든 층에 연결이 제거되었다
+					if (delete_node->All_Removed()) {
 						// 재사용 하도록 EBR 컨테이너로 이양
 						ebr.Reuse(delete_node);
 					}
