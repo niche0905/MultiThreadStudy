@@ -397,9 +397,10 @@ public:
 			next[i].set_ptr(0);
 		}
 
-		for (int i = 0; i <= top; ++i) {
-			removed[i] = false;
-		}
+		// Add할 때 연결 직적에 초기화 해주는 것으로
+		//for (int i = 0; i <= top; ++i) {
+		//	removed[i] = false;
+		//}
 	}
 
 	bool All_Removed()
@@ -611,6 +612,7 @@ public:
 			}
 
 			for (int i = 0; i <= lv; ++i) {
+				new_node->removed[i] = false;
 				new_node->next[i].set_ptr(currs[i]);
 			}
 
