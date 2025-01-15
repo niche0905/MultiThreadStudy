@@ -374,6 +374,20 @@ public:
 
 	void Reset(int x, int top)
 	{
+		// 문제가 있는 상황 All_Removed 라고 해서 Reuse를 했는데
+		// 재사용하려고 Reset을 할 땐 All_Removed가 아니라고 함
+		if (not All_Removed()) {
+			std::cout << "ERROR!!\n";
+			for (int i = 0; i <= MAX_TOP; ++i) {
+				if (not removed[i])
+					std::cout << i << "\n";
+			}
+			std::cout << "top level : " << top << "\n";
+		}
+		// Add 에서 Reuse 하는 경우 removed가 초기화 되지 않는다...
+		// Add를 수정했음에도 ERROR가 검출된다
+		// fence 문제인가? (컴파일러 최적화)
+
 		key = x;
 		top_level = top;
 		ebr_number = 0;
@@ -395,6 +409,13 @@ public:
 				return false;
 
 		return true;
+	}
+
+	void Set_Removed()
+	{
+		for (int i = 0; i <= MAX_TOP; ++i) {
+			removed[i] = true;
+		}
 	}
 };
 
@@ -582,6 +603,7 @@ public:
 
 			// 이미 존재한다면
 			if (true == found) {
+				new_node->Set_Removed();
 				ebr.Reuse(new_node);
 				ebr.End_epoch();
 
@@ -605,7 +627,7 @@ public:
 						break;
 
 					Find(x, prevs, currs);
-					//new_node->next[i]->set_ptr(currs[i]);	// 교재에는 버그로 없다 -> 없으면 EBR에서 오류 // 하지만 지금은 있으면 안돌아가기에 주석 처리
+					new_node->next[i].set_ptr(currs[i]);	// 교재에는 버그로 없다 -> 없으면 EBR에서 오류 // 하지만 지금은 있으면 안돌아가기에 주석 처리
 				}
 			}
 
