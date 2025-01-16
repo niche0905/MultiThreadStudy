@@ -491,9 +491,14 @@ public:
 		}
 
 		// 재활용 가능한 노드가 있다 (찾았다)
-		node_free_queue.pop();
-		p->Reset(x, top);
-		return p;
+		if (p->All_Removed()) {
+			node_free_queue.pop();
+			p->Reset(x, top);
+			return p;
+		}
+		else {
+			return new EBR_SK_LF_NODE{ x, top };
+		}
 	}
 };
 
