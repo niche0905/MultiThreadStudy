@@ -624,6 +624,13 @@ public:
 			}
 
 			// 최하층을 내가 추가했으면(CAS에 성공했으면 내가 추가한 것임)
+			bool removed = false;
+			
+			// 아래 코드 블럭이 원자적으로 이루어져야 하지 않나?
+			currs[0]->next[0].get_ptr(&removed);
+			if (removed) {
+				continue;
+			}
 			if (false == prevs[0]->next[0].CAS(currs[0], new_node, false, false)) {	// 어떠한 이유로 CAS에 실패하였으므로 Find 부터 다시
 				// delete new_node;
 				continue;
