@@ -604,10 +604,10 @@ public:
 		EBR_SK_LF_NODE* new_node = ebr.Get_node(x, lv);
 
 		while (true) {
-		add_retry:
-
 			EBR_SK_LF_NODE* prevs[MAX_TOP + 1];
 			EBR_SK_LF_NODE* currs[MAX_TOP + 1];
+
+		add_retry:
 
 			bool found = Find(x, prevs, currs);
 
@@ -635,6 +635,8 @@ public:
 			}
 			currs[0]->next[0].get_ptr(&removed);
 			if (removed) {
+				// 이미 연결된 것 없애야 함 ㅇㅇ
+
 				continue;
 			}
 
@@ -645,6 +647,8 @@ public:
 						removed = false;
 						currs[i]->next[i].get_ptr(&removed);
 						if (removed) {
+							// 이미 연결된 것 없애야 함 ㅇㅇ
+
 							goto add_retry;
 						}
 
