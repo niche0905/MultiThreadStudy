@@ -604,6 +604,8 @@ public:
 		EBR_SK_LF_NODE* new_node = ebr.Get_node(x, lv);
 
 		while (true) {
+		add_retry:
+
 			EBR_SK_LF_NODE* prevs[MAX_TOP + 1];
 			EBR_SK_LF_NODE* currs[MAX_TOP + 1];
 
@@ -627,20 +629,27 @@ public:
 			bool removed = false;
 			
 			// 아래 코드 블럭이 원자적으로 이루어져야 하지 않나?
-			currs[0]->next[0].get_ptr(&removed);
-			if (removed) {
-				continue;
-			}
 			if (false == prevs[0]->next[0].CAS(currs[0], new_node, false, false)) {	// 어떠한 이유로 CAS에 실패하였으므로 Find 부터 다시
 				// delete new_node;
+				continue;
+			}
+			currs[0]->next[0].get_ptr(&removed);
+			if (removed) {
 				continue;
 			}
 
 			// 내가 추가했으면 위에 층들도 책임지고 연결
 			for (int i = 1; i <= lv; ++i) {
 				while (true) {
-					if (true == prevs[i]->next[i].CAS(currs[i], new_node, false, false))
+					if (true == prevs[i]->next[i].CAS(currs[i], new_node, false, false)) {
+						removed = false;
+						currs[i]->next[i].get_ptr(&removed);
+						if (removed) {
+							goto add_retry;
+						}
+
 						break;
+					}
 
 					Find(x, prevs, currs);
 					//new_node->next[i].set_ptr(currs[i]);	// 교재에는 버그로 없다 -> 없으면 EBR에서 오류 // 하지만 지금은 있으면 안돌아가기에 주석 처리
