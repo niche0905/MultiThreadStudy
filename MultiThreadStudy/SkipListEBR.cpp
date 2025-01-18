@@ -326,28 +326,46 @@ public:
 	EBR_SK_LF_NODE* get_ptr()
 	{
 		long long p = sptr.load();
-		return reinterpret_cast<EBR_SK_LF_NODE*>(p & 0xFFFFFFFFFFFFFFFE);
+		return reinterpret_cast<EBR_SK_LF_NODE*>(p & 0xFFFFFFFFFFFFFFFC);
 	}
 
 	EBR_SK_LF_NODE* get_ptr(bool* removed)
 	{
 		long long p = sptr.load();
 		*removed = (1 == (p & 1));	// p의 최하위 1비트로 removed를 판단
-		return reinterpret_cast<EBR_SK_LF_NODE*>(p & 0xFFFFFFFFFFFFFFFE);
+		return reinterpret_cast<EBR_SK_LF_NODE*>(p & 0xFFFFFFFFFFFFFFFC);
 	}
 
 	bool CAS(EBR_SK_LF_NODE* old_p, EBR_SK_LF_NODE* new_p, bool old_m, bool new_m)
 	{
 		long long old_v = reinterpret_cast<long long>(old_p);
 		if (true == old_m) old_v = old_v | 1;
-		else old_v = old_v & 0xFFFFFFFFFFFFFFFE;	// 굳이 필요한 작업인지는 잘 모르겠습니다
+		else old_v = old_v & 0xFFFFFFFFFFFFFFFC;	// 굳이 필요한 작업인지는 잘 모르겠습니다
 
 		long long new_v = reinterpret_cast<long long>(new_p);
 		if (true == new_m) new_v = new_v | 1;
-		else new_v = new_v & 0xFFFFFFFFFFFFFFFE;
+		else new_v = new_v & 0xFFFFFFFFFFFFFFFC;
 
 		return std::atomic_compare_exchange_strong(&sptr, &old_v, new_v);
 		// &sptr 위치에 있는 값을 old_v와 비교 후 같다면 new_v로 달라서 바꾸지 못했으면 false를 반환 후 &sptr에 있던 값은 old_v로 확인 가능
+	}
+
+	bool try_remove()
+	{
+		long long p = sptr.load();
+		bool removed = (1 == (p & 1));
+		if (not removed)
+			return false;
+
+		long long old_v = p;
+		long long new_v = p | 2;
+		return std::atomic_compare_exchange_strong(&sptr, &old_v, new_v);
+	}
+
+	bool get_removed()
+	{
+		long long p = sptr.load();
+		return (2 == (p & 2));
 	}
 };
 
@@ -356,16 +374,13 @@ class EBR_SK_LF_NODE		// SkipList LockFree Node
 public:
 	int key;
 	EBR_SK_SPTR next[MAX_TOP + 1] = {};	// 0층부터 9층(MAX_TOP)까지 있음
-	bool removed[MAX_TOP + 1] = {};		// 연결리스트에서 실제로 제거(배제)되었는지
 	int top_level;	// 현재 노드의 최상층 (지름길 존재하는 층)
 	int ebr_number;
 
 public:
 	EBR_SK_LF_NODE(int x, int top) : key{ x }, top_level{ top }, ebr_number{ 0 }
 	{
-		for (int i = top + 1; i <= MAX_TOP; ++i) {
-			removed[i] = true;
-		}
+
 	}
 
 	~EBR_SK_LF_NODE()
@@ -374,22 +389,6 @@ public:
 
 	void Reset(int x, int top)
 	{
-		// 문제가 있는 상황 All_Removed 라고 해서 Reuse를 했는데
-		// 재사용하려고 Reset을 할 땐 All_Removed가 아니라고 함
-		if (not All_Removed()) {
-			std::cout << "ERROR!!\n";
-			for (int i = 0; i <= MAX_TOP; ++i) {
-				if (not removed[i])
-					std::cout << i << "\n";
-			}
-			std::cout << "top level : " << top << "\n";
-			std::cout << "Trouble Node : " << x << "\n";
-			std::cout << "Ex Value : " << key << "\n";
-		}
-		// Add 에서 Reuse 하는 경우 removed가 초기화 되지 않는다...
-		// Add를 수정했음에도 ERROR가 검출된다
-		// fence 문제인가? (컴파일러 최적화)
-
 		key = x;
 		top_level = top;
 		ebr_number = 0;
@@ -398,26 +397,23 @@ public:
 		for (int i = 0; i <= MAX_TOP; ++i) {
 			next[i].set_ptr(0);
 		}
-
-		// Add할 때 연결 직적에 초기화 해주는 것으로
-		//for (int i = 0; i <= top; ++i) {
-		//	removed[i] = false;
-		//}
 	}
 
 	bool All_Removed()
 	{
-		for (int i = 0; i <= MAX_TOP; ++i)
-			if (not removed[i])
+		for (int i = 0; i <= top_level; ++i) {
+			if (not next[i].get_removed()) {
 				return false;
+			}
+		}
 
 		return true;
 	}
-
+	
 	void Set_Removed()
 	{
-		for (int i = 0; i <= MAX_TOP; ++i) {
-			removed[i] = true;
+		for (int i = 0; i <= top_level; ++i) {
+			next[i].try_remove();
 		}
 	}
 };
@@ -564,7 +560,9 @@ public:
 					if (false == prevs[i]->next[i].CAS(currs[i], succ, false, false)) {
 						goto retry;
 					}
-					delete_node->removed[i] = true;
+
+					// 무한으로 sptr에 remove 시도
+					while (not delete_node->next[i].try_remove());
 
 					// 모든 층에 연결이 제거되었다
 					if (delete_node->All_Removed()) {
@@ -619,7 +617,6 @@ public:
 			}
 
 			for (int i = 0; i <= lv; ++i) {
-				new_node->removed[i] = false;
 				new_node->next[i].set_ptr(currs[i]);
 			}
 
@@ -871,7 +868,7 @@ void benchmark(const int num_thread, int _thread_id)
 		}
 	}
 
-	ebr.Clear();	// 이것이 메모리 릭이였다 => thread_local이여서 clear가 되었음
+	//ebr.Clear();	// 이것이 메모리 릭이였다 => thread_local이여서 clear가 되었음
 }
 
 
