@@ -304,7 +304,7 @@ public:
 class EBR_SK_LF_NODE;		// EBR SkipList LockFree Node 전방 선언
 
 thread_local int thread_id;
-thread_local std::queue<EBR_SK_LF_NODE*> node_free_queue;
+//thread_local std::queue<EBR_SK_LF_NODE*> node_free_queue;
 
 class EBR_SK_SPTR			// SkipList 합성 포인터 (LockFree(CAS)를 위한)
 {
@@ -423,7 +423,7 @@ class EBR
 private:
 	std::atomic_int epoch_counter;
 	std::atomic_int epoch_array[MAX_THREAD * 16];	// Cache Thrasing으로 성능저하를 막기 위해 (alignas 를 이용하는 방법도 존재)
-
+	alignas(64) std::queue <EBR_SK_LF_NODE*> node_free_queue[MAX_THREAD];
 public:
 	EBR() : epoch_counter{ 1 }
 	{
@@ -437,9 +437,10 @@ public:
 
 	void Clear()
 	{
-		while (not node_free_queue.empty()) {
-			auto p = node_free_queue.front();
-			node_free_queue.pop();
+		for (auto &q : node_free_queue)
+		while (not q.empty()) {
+			auto p = q.front();
+			q.pop();
 			delete p;
 		}
 
@@ -450,7 +451,7 @@ public:
 		// 해당 노드 재사용 하고싶을때 호출 (노드에서 Remove 될 때)
 	{
 		node->ebr_number = epoch_counter;
-		node_free_queue.push(node);
+		node_free_queue[thread_id].push(node);
 		
 		// PLAN A : if (node_free_queue.size() > MAX_FREE_SIZE) safe_delete();
 		// 낭비되는 메모리의 최대값을 제한한다 (일적 개수 이상이면 삭제 delete를 통해서)
@@ -475,11 +476,11 @@ public:
 		// PLAN B : 가능한 new/delete 없이 재사용
 
 		// queue가 비어있다면 새로 만들어서 (new)
-		if (node_free_queue.empty())
+		if (node_free_queue[thread_id].empty())
 			return new EBR_SK_LF_NODE{ x, top };
 
 		// 재활용 가능한 노드가 없다면 새로 만들어서 바로 반환
-		EBR_SK_LF_NODE* p = node_free_queue.front();
+		EBR_SK_LF_NODE* p = node_free_queue[thread_id].front();
 		for (int i = 0; i < MAX_THREAD; ++i) {
 			if ((epoch_array[i * 16] != 0 and epoch_array[i * 16] < p->ebr_number)) {
 				return new EBR_SK_LF_NODE{ x, top };
@@ -488,7 +489,7 @@ public:
 
 		// 재활용 가능한 노드가 있다 (찾았다)
 		if (p->All_Removed()) {
-			node_free_queue.pop();
+			node_free_queue[thread_id].pop();
 			p->Reset(x, top);
 			return p;
 		}
@@ -528,7 +529,7 @@ public:
 			delete p;
 		}
 
-		ebr.Clear();
+		//ebr.Clear();
 
 		// 모두 삭제 후 head의 next는 tail로 설정
 		Init();
@@ -919,4 +920,5 @@ int main()
 		}
 
 	}
+	ebr.Clear();
 }
