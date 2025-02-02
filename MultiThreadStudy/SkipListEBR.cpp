@@ -362,6 +362,15 @@ public:
 		return std::atomic_compare_exchange_strong(&sptr, &old_v, new_v);
 	}
 
+	bool recover_remove()
+	{
+		long long p = sptr.load();
+
+		long long old_v = p;
+		long long new_v = p & 0xFFFFFFFFFFFFFFFD;
+		return std::atomic_compare_exchange_strong(&sptr, &old_v, new_v);
+	}
+
 	bool get_removed()
 	{
 		long long p = sptr.load();
@@ -488,14 +497,9 @@ public:
 		}
 
 		// 재활용 가능한 노드가 있다 (찾았다)
-		if (p->All_Removed()) {
-			node_free_queue[thread_id].pop();
-			p->Reset(x, top);
-			return p;
-		}
-		else {
-			return new EBR_SK_LF_NODE{ x, top };
-		}
+		node_free_queue[thread_id].pop();
+		p->Reset(x, top);
+		return p;
 	}
 };
 
@@ -624,21 +628,25 @@ public:
 			// 최하층을 내가 추가했으면(CAS에 성공했으면 내가 추가한 것임)
 			bool removed = false;
 			
-			// 아래 코드 블럭이 원자적으로 이루어져야 하지 않나?
-			currs[0]->next[0].get_ptr(&removed);
-			if (removed) {
+			if (false == prevs[0]->next[0].CAS(currs[0], new_node, false, false)) {	// 어떠한 이유로 CAS에 실패하였으므로 Find 부터 다시
 				continue;
 			}
-			if (false == prevs[0]->next[0].CAS(currs[0], new_node, false, false)) {	// 어떠한 이유로 CAS에 실패하였으므로 Find 부터 다시
-				// delete new_node;
-				continue;
+			// 만약 내가 물리적으로 삭제된 노드를 되살렸다면
+			if (currs[0]->next[0].get_removed()) {
+				while (currs[0]->next[0].recover_remove());
 			}
 
 			// 내가 추가했으면 위에 층들도 책임지고 연결
 			for (int i = 1; i <= lv; ++i) {
 				while (true) {
-					if (true == prevs[i]->next[i].CAS(currs[i], new_node, false, false))
+					if (true == prevs[i]->next[i].CAS(currs[i], new_node, false, false)) {
+						// 만약 내가 물리적으로 삭제된 노드를 되살렸다면
+						if (currs[i]->next[i].get_removed()) {
+							while (currs[i]->next[i].recover_remove());
+						}
+
 						break;
+					}
 
 					Find(x, prevs, currs);
 					//new_node->next[i].set_ptr(currs[i]);	// 교재에는 버그로 없다 -> 없으면 EBR에서 오류 // 하지만 지금은 있으면 안돌아가기에 주석 처리
