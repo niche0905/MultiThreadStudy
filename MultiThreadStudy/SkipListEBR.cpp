@@ -500,9 +500,9 @@ public:
 		// 재활용 가능한 노드가 있다 (찾았다)
 
 		// 아래 코드 주석 해제 시 무한루프
-		//node_free_queue[thread_id].pop();
-		//p->Reset(x, top);
-		//return p;
+		node_free_queue[thread_id].pop();
+		p->Reset(x, top);
+		return p;
 
 		if (p->All_Removed()) {
 			node_free_queue[thread_id].pop();
