@@ -323,6 +323,16 @@ public:
 		sptr = reinterpret_cast<long long>(ptr);
 	}
 
+	void set_ptr_only(EBR_SK_LF_NODE* ptr)
+	{
+		bool removed{ false };
+		EBR_SK_LF_NODE* old_v = get_ptr(&removed);
+
+		while (not CAS(old_v, ptr, removed, removed)) {
+			old_v = get_ptr(&removed);
+		}
+	}
+
 	EBR_SK_LF_NODE* get_ptr()
 	{
 		long long p = sptr.load();
@@ -488,9 +498,20 @@ public:
 		}
 
 		// 재활용 가능한 노드가 있다 (찾았다)
-		node_free_queue[thread_id].pop();
-		p->Reset(x, top);
-		return p;
+
+		// 아래 코드 주석 해제 시 무한루프
+		//node_free_queue[thread_id].pop();
+		//p->Reset(x, top);
+		//return p;
+
+		if (p->All_Removed()) {
+			node_free_queue[thread_id].pop();
+			p->Reset(x, top);
+			return p;
+		}
+		else {
+			return new EBR_SK_LF_NODE{ x, top };
+		}
 	}
 };
 
@@ -636,7 +657,7 @@ public:
 						break;
 
 					Find(x, prevs, currs);
-					//new_node->next[i].set_ptr(currs[i]);	// 교재에는 버그로 없다 -> 없으면 EBR에서 오류 // 하지만 지금은 있으면 안돌아가기에 주석 처리
+					new_node->next[i].set_ptr_only(currs[i]);	// 교재에는 버그로 없다 -> 없으면 EBR에서 오류 // 하지만 지금은 있으면 안돌아가기에 주석 처리
 				}
 			}
 
