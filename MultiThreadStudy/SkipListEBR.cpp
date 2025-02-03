@@ -394,9 +394,9 @@ public:
 		ebr_number = 0;
 
 		// 아래 반복문 하나는 최적화 할 때 주석처리 해야할 과정
-		for (int i = 0; i <= MAX_TOP; ++i) {
-			next[i].set_ptr(0);
-		}
+		//for (int i = 0; i <= MAX_TOP; ++i) {
+		//	next[i].set_ptr(0);
+		//}
 	}
 
 	bool All_Removed()
@@ -488,14 +488,9 @@ public:
 		}
 
 		// 재활용 가능한 노드가 있다 (찾았다)
-		if (p->All_Removed()) {
-			node_free_queue[thread_id].pop();
-			p->Reset(x, top);
-			return p;
-		}
-		else {
-			return new EBR_SK_LF_NODE{ x, top };
-		}
+		node_free_queue[thread_id].pop();
+		p->Reset(x, top);
+		return p;
 	}
 };
 
