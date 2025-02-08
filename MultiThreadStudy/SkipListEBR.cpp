@@ -500,9 +500,9 @@ public:
 		// 재활용 가능한 노드가 있다 (찾았다)
 
 		// 아래 코드 주석 해제 시 무한루프
-		//node_free_queue[thread_id].pop();
-		//p->Reset(x, top);
-		//return p;
+		node_free_queue[thread_id].pop();
+		p->Reset(x, top);
+		return p;
 
 		if (p->All_Removed()) {
 			node_free_queue[thread_id].pop();
@@ -633,9 +633,11 @@ public:
 				return false;
 			}
 
-			for (int i = 0; i <= lv; ++i) {
-				new_node->next[i].set_ptr(currs[i]);
-			}
+			new_node->next[0].set_ptr(currs[0]);
+			// 아래의 코드가 문제? 모든 층을 한번에 set_ptr을 부르면 안됨
+			//for (int i = 0; i <= lv; ++i) {
+			//	new_node->next[i].set_ptr(currs[i]);
+			//}
 
 			// 최하층을 내가 추가했으면(CAS에 성공했으면 내가 추가한 것임)
 			bool removed = false;
@@ -652,6 +654,9 @@ public:
 
 			// 내가 추가했으면 위에 층들도 책임지고 연결
 			for (int i = 1; i <= lv; ++i) {
+				Find(x, prevs, currs);
+				new_node->next[i].set_ptr(currs[i]);
+
 				while (true) {
 					if (true == prevs[i]->next[i].CAS(currs[i], new_node, false, false))
 						break;
