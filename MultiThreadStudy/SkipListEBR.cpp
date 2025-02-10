@@ -386,9 +386,10 @@ public:
 	EBR_SK_SPTR next[MAX_TOP + 1] = {};	// 0층부터 9층(MAX_TOP)까지 있음
 	int top_level;	// 현재 노드의 최상층 (지름길 존재하는 층)
 	int ebr_number;
+	std::atomic_bool gone_to_ebr;	// EBR에 재사용을 위해 넘겨짐.
 
 public:
-	EBR_SK_LF_NODE(int x, int top) : key{ x }, top_level{ top }, ebr_number{ 0 }
+	EBR_SK_LF_NODE(int x, int top) : key{ x }, top_level{ top }, ebr_number{ 0 }, gone_to_ebr(false)
 	{
 
 	}
@@ -402,6 +403,7 @@ public:
 		key = x;
 		top_level = top;
 		ebr_number = 0;
+		gone_to_ebr = false;
 
 		// 아래 반복문 하나는 최적화 할 때 주석처리 해야할 과정
 		//for (int i = 0; i <= MAX_TOP; ++i) {
@@ -504,14 +506,14 @@ public:
 		p->Reset(x, top);
 		return p;
 
-		if (p->All_Removed()) {
-			node_free_queue[thread_id].pop();
-			p->Reset(x, top);
-			return p;
-		}
-		else {
-			return new EBR_SK_LF_NODE{ x, top };
-		}
+		//if (p->All_Removed()) {
+		//	node_free_queue[thread_id].pop();
+		//	p->Reset(x, top);
+		//	return p;
+		//}
+		//else {
+		//	return new EBR_SK_LF_NODE{ x, top };
+		//}
 	}
 };
 
@@ -584,7 +586,9 @@ public:
 					// 모든 층에 연결이 제거되었다
 					if (delete_node->All_Removed()) {
 						// 재사용 하도록 EBR 컨테이너로 이양
-						ebr.Reuse(delete_node);
+						bool temp = false;
+						if (true == std::atomic_compare_exchange_strong(&delete_node->gone_to_ebr, &temp, true))
+							ebr.Reuse(delete_node);
 					}
 
 					// 내가 삭제했다면 이어서 탐색
@@ -633,20 +637,20 @@ public:
 				return false;
 			}
 
-			new_node->next[0].set_ptr(currs[0]);
+			//new_node->next[0].set_ptr(currs[0]);
 			// 아래의 코드가 문제? 모든 층을 한번에 set_ptr을 부르면 안됨
-			//for (int i = 0; i <= lv; ++i) {
-			//	new_node->next[i].set_ptr(currs[i]);
-			//}
+			for (int i = 0; i <= lv; ++i) {
+				new_node->next[i].set_ptr(currs[i]);
+			}
 
 			// 최하층을 내가 추가했으면(CAS에 성공했으면 내가 추가한 것임)
 			bool removed = false;
 			
 			// 아래 코드 블럭이 원자적으로 이루어져야 하지 않나?
-			currs[0]->next[0].get_ptr(&removed);
-			if (removed) {
-				continue;
-			}
+			//currs[0]->next[0].get_ptr(&removed);
+			//if (removed) {
+			//	continue;
+			//}
 			if (false == prevs[0]->next[0].CAS(currs[0], new_node, false, false)) {	// 어떠한 이유로 CAS에 실패하였으므로 Find 부터 다시
 				// delete new_node;
 				continue;
@@ -655,7 +659,7 @@ public:
 			// 내가 추가했으면 위에 층들도 책임지고 연결
 			for (int i = 1; i <= lv; ++i) {
 				Find(x, prevs, currs);
-				new_node->next[i].set_ptr(currs[i]);
+				new_node->next[i].set_ptr_only(currs[i]);
 
 				while (true) {
 					if (true == prevs[i]->next[i].CAS(currs[i], new_node, false, false))
