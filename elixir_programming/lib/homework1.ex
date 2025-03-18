@@ -17,7 +17,14 @@ defmodule MyModule do
 
   # 숫자 하나를 입력 받아서. 피보나치 수열 중에 그 숫자와 가장 가까운 숫자를 출력하는 프로그램
   def close_pibo(n) do
-
+    Stream.unfold({0, 1}, fn {f1, f2} -> {f1, {f2, f1 + f2}} end)
+    |> Enum.reduce_while({nil, nil}, fn fib, {prev, _ } ->
+       if prev != nil and abs(prev - n) < abs(fib - n) do
+         {:halt, prev} # 이전 값이 더 가까우므로 종료
+       else
+         {:cont, {fib, prev}} # 계속 진행
+       end
+     end)
   end
 
   # 숫자 n을 입력 받아서 n개의 약수를 갖는 가장 작은 수를 출력하는 프로그램
