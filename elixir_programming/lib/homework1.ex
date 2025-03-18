@@ -34,9 +34,14 @@ defmodule MyModule do
   end
 
   # 숫자 n을 입력 받아서 n!의 모든 자리수를 더해서 출력하는 프로그램.
-  def factorial_digit_sum(n) do
-
+  def factorial_digit_sum(n) when n > 0  do
+    num = 1..n
+    |> Enum.reduce(fn a, b -> a * b end)
+    digit_sum(num)
   end
+
+  defp digit_sum(0), do: 0
+  defp digit_sum(n), do: rem(n, 10) + digit_sum(div(n, 10))
 
   # 숫자 n을 입력 받아서 a+b+c=n이 되는 피타고라스 수를 모두 출력하는 프로그램
   def pitagoras_print(n) do
