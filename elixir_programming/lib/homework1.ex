@@ -49,9 +49,12 @@ defmodule MyModule do
   end
 
   # 숫자 n을 입력 받아서 그 숫자를 2진수로 나타냈을 때 1의 개수를 출력하는 프로그램
-  def binary_1_counter(n) do
-
+  def binary_1_counter(n) when n >= 0 do
+    binary_digit_sum(n)
   end
+
+  defp binary_digit_sum(0), do: 0
+  defp binary_digit_sum(n), do: rem(n, 2) + binary_digit_sum(div(n, 2))
 
   # 텍스트 파일의 이름을 입력 받아서 가장 많이 사용된 단어 10개를 사용 빈도와 함께 출력
   def find_many_10_word(n) do
