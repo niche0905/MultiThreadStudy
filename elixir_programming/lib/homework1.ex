@@ -1,8 +1,14 @@
 defmodule MyModule do
   # 숫자 하나를 입력 받아서 1부터 그 숫자까지의 소수의 개수를 출력하는 프로그램
-  def count_prime_number(n) do
-
+  def count_prime_number(n) when n > 1 do
+    2..n
+    |> Enum.filter(&is_prime?/1)
+    |> Enum.count()
   end
+
+  defp is_prime?(n) when n < 2, do: false
+  defp is_prime?(2), do: true
+  defp is_prime?(n), do: Enum.all?(2..(max(2 , (:math.sqrt(n)) |> trunc)), fn x -> rem(n, x) != 0 end)
 
   # 숫자 n을 입력 받아서 n번째 소수를 출력하는 프로그램
   def nth_prime(n) do
