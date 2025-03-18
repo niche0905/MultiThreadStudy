@@ -56,7 +56,13 @@ defmodule MyModule do
 
   # 숫자 n을 입력 받아서 a+b+c=n이 되는 피타고라스 수를 모두 출력하는 프로그램
   def pitagoras_print(n) do
-
+    nums = for a <- 1..(n-2),
+        b <- 1..(n-2),
+        c = n - a - b,
+        c > 0,
+        a * a + b * b == c * c or a * a + c * c == b * b or b * b + c * c == a * a,
+        do: {a, b, c}
+    IO.inspect(nums)
   end
 
   # 숫자 n을 입력 받아서 그 숫자를 2진수로 나타냈을 때 1의 개수를 출력하는 프로그램
