@@ -74,8 +74,13 @@ defmodule MyModule do
   defp binary_digit_sum(n), do: rem(n, 2) + binary_digit_sum(div(n, 2))
 
   # 텍스트 파일의 이름을 입력 받아서 가장 많이 사용된 단어 10개를 사용 빈도와 함께 출력
-  def find_many_10_word(n) do
-
+  def find_many_10_word(file_name) do
+    many_words = File.read!(file_name)
+    |> String.split(~r/\s+/)
+    |> Enum.frequencies()
+    |> Enum.sort_by(fn {_word, count} -> -count end)  # 내림차순을 위해 -
+    |> Enum.take(10)
+    IO.inspect(many_words)
   end
 
 end
