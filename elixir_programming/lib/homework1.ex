@@ -33,6 +33,17 @@ defmodule MyModule do
 
   end
 
+  defp factorize(1, _, factors), do: Enum.reverse(factors)
+  defp factorize(n, divisor, factors) when rem(n, divisor) == 0 do
+    factorize(div(n, divisor), divisor, [divisor | factors])
+  end
+  defp factorize(n, divisor, factors), do: factorize(n, next_prime(divisor), factors)
+
+  defp next_prime(n) do
+    Stream.iterate(n + 1, &(&1 + 1))
+    |> Enum.find(&is_prime?/1)
+  end
+
   # 숫자 n을 입력 받아서 n!의 모든 자리수를 더해서 출력하는 프로그램.
   def factorial_digit_sum(n) when n > 0  do
     num = 1..n
