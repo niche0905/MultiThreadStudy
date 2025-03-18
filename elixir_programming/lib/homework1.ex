@@ -11,8 +11,8 @@ defmodule MyModule do
   defp is_prime?(n), do: Enum.all?(2..(max(2 , (:math.sqrt(n)) |> trunc)), fn x -> rem(n, x) != 0 end)
 
   # 숫자 n을 입력 받아서 n번째 소수를 출력하는 프로그램
-  def nth_prime(n) do
-
+  def nth_prime(n) when n > 1 do
+    Stream.iterate(2, &(&1 + 1)) |>  Stream.filter(&is_prime?/1) |> Enum.take(n) |> List.last()
   end
 
   # 숫자 하나를 입력 받아서. 피보나치 수열 중에 그 숫자와 가장 가까운 숫자를 출력하는 프로그램
