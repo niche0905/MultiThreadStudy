@@ -30,7 +30,13 @@ defmodule MyModule do
   # 숫자 n을 입력 받아서 n개의 약수를 갖는 가장 작은 수를 출력하는 프로그램
   # (추가 필요) 소인수 분해를 하라.
   def smallest_measure_num(n) do
-
+    Stream.iterate(1, &(&1 + 1))
+    |> Stream.map(factorize/3, 2, [])
+    |> Enum.frequencies()
+    |> Enum.map(fn map -> Enum.reduce(map, 1, fn {_key, value}, acc -> acc * (value) + 1 end) end)
+    |> Enum.reduce_while(nil, fn x, _acc ->
+       if x == n, do: {:halt, x},else: {:cont, nil}
+     end)
   end
 
   defp factorize(1, _, factors), do: Enum.reverse(factors)
