@@ -31,13 +31,21 @@ defmodule MyModule do
   # (추가 필요) 소인수 분해를 하라.
   def smallest_measure_num(n) do
     Stream.iterate(1, &(&1 + 1))
-    |> Stream.map(factorize/3, 2, [])
-    |> Enum.frequencies()
-    |> Enum.map(fn map -> Enum.reduce(map, 1, fn {_key, value}, acc -> acc * (value) + 1 end) end)
-    |> Enum.reduce_while(nil, fn x, _acc ->
-       if x == n, do: {:halt, x},else: {:cont, nil}
-     end)
+    |> Stream.map(fn num -> {num, divisor_count(num)} end)
+    |> Enum.find(fn {_num, count} -> count == n end)
+    |> elem(0)
   end
+
+  defp divisor_count(num) do
+    num
+    |> factorize()
+    |> Enum.frequencies()
+    |> Map.values()
+    |> Enum.map(&(&1 + 1))
+    |> Enum.product()
+  end
+
+  def factorize(n), do: factorize(n, 2, [])
 
   defp factorize(1, _, factors), do: Enum.reverse(factors)
   defp factorize(n, divisor, factors) when rem(n, divisor) == 0 do
