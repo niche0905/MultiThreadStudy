@@ -26,5 +26,11 @@ defmodule Factorization do
     end
   end
 
+  def factorize_multi(n) do
+    max_divisor = :math.sqrt(n) |> trunc()
+    numbers = Enum.to_list(2..max_divisor)
 
+    # 재귀로 반복하면서 numbers에서 head를 꺼내고 numbers를 수정하고
+    # 프로세스 만들어서 head로 나누어 떨어지면 인수로 추가하고
+  end
 end
