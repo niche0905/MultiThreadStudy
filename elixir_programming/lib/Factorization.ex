@@ -27,7 +27,7 @@ defmodule Factorization do
   end
 
   def factorize_multi(n) do
-    max_divisor = :math.sqrt(n) |> trunc()
+    max_divisor = n
     numbers = Enum.to_list(2..max_divisor)
 
     # 재귀로 반복하면서 numbers에서 head를 꺼내고 numbers를 수정하고
@@ -36,7 +36,7 @@ defmodule Factorization do
   end
 
   defp factorize_multi(1, _divisiors, factors), do: Enum.reverse(factors)
-  defp factorize_multi(n, [], factors), do: Enum.reverse([n | factors])
+  defp factorize_multi(_n, [], factors), do: Enum.reverse(factors)
 
   defp factorize_multi(n, [p | rest], factors) do
     # 프로세스 만들어서 p로 나누어 떨어지면 인수로 p 추가 한 리스트 리턴
