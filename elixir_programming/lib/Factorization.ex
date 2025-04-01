@@ -32,13 +32,13 @@ defmodule Factorization do
 
     # 재귀로 반복하면서 numbers에서 head를 꺼내고 numbers를 수정하고
     # 프로세스 만들어서 head로 나누어 떨어지면 인수로 추가하고
-    factorize_mulit(n, numbers, [])
+    factorize_multi(n, numbers, [])
   end
 
   defp factorize_multi(1, _divisiors, factors), do: Enum.reverse(factors)
   defp factorize_multi(n, [], factors), do: Enum.reverse([n | factors])
 
-  defp factorize_mulit(n, [p | rest], factors) do
+  defp factorize_multi(n, [p | rest], factors) do
     # 프로세스 만들어서 p로 나누어 떨어지면 인수로 p 추가 한 리스트 리턴
     parent = self()
 
@@ -48,7 +48,7 @@ defmodule Factorization do
      end)
 
     filtered_list = Enum.reject(rest, &(rem(&1, p) == 0))
-    return = factorize_single(n, filtered_list, factors)
+    return = factorize_multi(n, filtered_list, factors)
     receive do
       {:result, result} ->
         return ++ result
