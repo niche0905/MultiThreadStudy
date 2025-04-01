@@ -121,3 +121,49 @@ defmodule Factorization do
   end
 
 end
+
+
+"""
+실행결과 주석문
+
+
+iex(6)> Factorization.factorize_ordinary(120)
+Ordinary Execution time: 0 µs
+[5, 3, 2, 2, 2]
+iex(7)> Factorization.factorize_single(120)
+Single Execution time: 0 µs
+[2, 2, 2, 3, 5]
+iex(8)> Factorization.factorize_multi(120)
+Multi Execution time: 102 µs
+[2, 2, 2, 3, 5]
+iex(9)> Factorization.factorize_gpt(120)
+Multi Execution time: 103 µs
+[5, 3, 2, 2, 2]
+
+iex(10)> Factorization.factorize_ordinary(1213500)
+Ordinary Execution time: 0 µs
+[809, 5, 5, 5, 3, 2, 2]
+iex(11)> Factorization.factorize_single(1213500)
+Single Execution time: 103 µs
+[2, 2, 3, 5, 5, 5, 809]
+iex(12)> Factorization.factorize_multi(1213500)
+Multi Execution time: 307 µs
+[2, 2, 3, 5, 5, 5, 809]
+iex(13)> Factorization.factorize_gpt(1213500)
+Multi Execution time: 512 µs
+[809, 5, 5, 5, 3, 2, 2]
+
+iex(14)> Factorization.factorize_ordinary(52462044112)
+Ordinary Execution time: 7363174 µs
+[3278877757, 2, 2, 2, 2]
+iex(15)> Factorization.factorize_single(52462044112)
+Single Execution time: 2627380 µs
+[2, 2, 2, 2, 3278877757]
+iex(16)> Factorization.factorize_multi(52462044112)
+Multi Execution time: 2644583 µs
+[2, 2, 2, 2, 3278877757]
+iex(17)> Factorization.factorize_gpt(52462044112)
+Multi Execution time: 2583757 µs
+[3278877757, 2, 2, 2, 2]
+
+"""
