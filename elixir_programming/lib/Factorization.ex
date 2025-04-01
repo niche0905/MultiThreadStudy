@@ -9,9 +9,14 @@ defmodule Factorization do
   end
 
   def factorize_single(n) do
+    start_time = System.monotonic_time(:microsecond)
     max_divisior = :math.sqrt(n) |> trunc()
     numbers = Enum.to_list(2..max_divisior)
-    factorize_single(n, numbers, [])
+    result = factorize_single(n, numbers, [])
+    end_time = System.monotonic_time(:microsecond)
+    elapsed_time = end_time - start_time
+    IO.puts("Single Execution time: #{elapsed_time} µs")
+    result
   end
   defp factorize_single(1, _divisiors, factors), do: Enum.reverse(factors)
   defp factorize_single(n, [], factors), do: Enum.reverse([n | factors])
@@ -27,12 +32,17 @@ defmodule Factorization do
   end
 
   def factorize_multi(n) do
+    start_time = System.monotonic_time(:microsecond)
     max_divisor = :math.sqrt(n) |> trunc()
     numbers = Enum.to_list(2..max_divisor)
 
     # 재귀로 반복하면서 numbers에서 head를 꺼내고 numbers를 수정하고
     # 프로세스 만들어서 head로 나누어 떨어지면 인수로 추가하고
-    factorize_multi(n, numbers, [])
+    result = factorize_multi(n, numbers, [])
+    end_time = System.monotonic_time(:microsecond)
+    elapsed_time = end_time - start_time
+    IO.puts("Multi Execution time: #{elapsed_time} µs")
+    result
   end
 
   defp factorize_multi(1, _divisiors, factors), do: factors
