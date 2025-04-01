@@ -1,6 +1,15 @@
 
 defmodule Factorization do
-  def factorize_ordinary(n, divisior \\ 2, factors \\ []) do
+  def factorize_ordinary(n) do
+    start_time = System.monotonic_time(:microsecond)
+    result = factorize_ordinary(n, 2, [])
+    end_time = System.monotonic_time(:microsecond)
+    elapsed_time = end_time - start_time
+    IO.puts("Ordinary Execution time: #{elapsed_time} µs")
+    result
+  end
+
+  def factorize_ordinary(n, divisior, factors) do
     cond do
       n < 2 -> factors
       rem(n, divisior) == 0 -> factorize_ordinary(div(n, divisior), divisior, [divisior | factors])
@@ -69,6 +78,45 @@ defmodule Factorization do
       factorize_recursive(div(n, p), p, [p | factors])
     else
       factors
+    end
+  end
+
+  def factorize_gpt(n) do
+    start_time = System.monotonic_time(:microsecond)
+    max_divisor = :math.sqrt(n) |> trunc()
+    numbers = Enum.to_list(2..max_divisor)
+
+    result = factorize_parallel(n, numbers, [])
+    end_time = System.monotonic_time(:microsecond)
+    elapsed_time = end_time - start_time
+    IO.puts("Multi Execution time: #{elapsed_time} µs")
+    result
+  end
+
+  defp factorize_parallel(n, [], factors) do
+    if n > 1, do: [n | factors], else: factors
+  end
+
+  defp factorize_parallel(n, [p | rest], factors) do
+    parent = self()
+
+    task =
+      Task.async(fn ->
+        factorize_div(n, p, [])
+      end)
+
+    {new_n, new_factors} = Task.await(task, :infinity)
+
+    filtered_list = Enum.reject(rest, &(rem(&1, p) == 0))
+
+    factorize_parallel(new_n, filtered_list, new_factors ++ factors)
+  end
+
+  defp factorize_div(n, p, factors) do
+    if rem(n, p) == 0 do
+      factorize_div(div(n, p), p, [p | factors])
+    else
+      {n, factors}
     end
   end
 
