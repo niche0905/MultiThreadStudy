@@ -35,8 +35,8 @@ defmodule Factorization do
     factorize_multi(n, numbers, [])
   end
 
-  defp factorize_multi(1, _divisiors, factors), do: Enum.reverse(factors)
-  defp factorize_multi(n, [], factors), do: Enum.reverse([div(n, Enum.reduce(factors, 1, &(&1 * &2))) | factors])
+  defp factorize_multi(1, _divisiors, factors), do: factors
+  defp factorize_multi(n, [], factors) when n != 1, do: factors ++ [n]
 
   defp factorize_multi(n, [p | rest], factors) do
     # 프로세스 만들어서 p로 나누어 떨어지면 인수로 p 추가 한 리스트 리턴
@@ -44,13 +44,13 @@ defmodule Factorization do
 
     spawn(fn  ->
       result = factorize_recursive(n, p, [])
-      send(parent, {:result, result})
+      send(parent, {:result, div(n, Enum.reduce(result, 1, &(&1 * &2))), result})
      end)
 
     filtered_list = Enum.reject(rest, &(rem(&1, p) == 0))
     receive do
-      {:result, result} ->
-        factorize_multi(n, filtered_list, factors ++ result)
+      {:result, new_n, result} ->
+        factorize_multi(new_n, filtered_list, factors ++ result)
     end
   end
 
