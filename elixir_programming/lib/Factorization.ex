@@ -120,6 +120,49 @@ defmodule Factorization do
     end
   end
 
+  # 소수를 이용한 소인수분해
+  def factorize_new1(n) do
+    start_time = System.monotonic_time(:microsecond)
+    primes = :math.sqrt(n) |> trunc() |> prime_list()
+
+    result = factorize_new1(n, primes, [])
+    remain = div(n, Enum.reduce(result, 1, &(&1 * &2)))
+    result = if remain != 1 do
+      result ++ [remain]
+    else
+      result
+    end
+    end_time = System.monotonic_time(:microsecond)
+    elapsed_time = end_time - start_time
+    IO.puts("New1 Execution time: #{elapsed_time} µs")
+    result
+  end
+
+  defp factorize_new1(_, [], _), do: []
+  defp factorize_new1(n, [p | primes], factors) do
+    parent = self()
+
+    spawn(fn  ->
+      result = factorize_recursive(n, p, [])
+      send(parent, {:result, result})
+     end)
+    others = factorize_new1(n, primes, factors)
+    receive do
+      {:result, result} ->
+        result ++ others
+    end
+  end
+
+  def prime_list(n) when n < 2, do: []
+  def prime_list(n) do
+    prime_list(Enum.to_list(2..n), n)
+  end
+
+  defp prime_list([], _), do: []
+  defp prime_list([h | t], max) do
+    [h | prime_list(Enum.reject(t, fn x -> rem(x, h) == 0 end), max)]
+  end
+
 end
 
 
