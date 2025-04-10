@@ -4,6 +4,9 @@
     <Filter Include="SkipList">
       <UniqueIdentifier>{b2680f5d-c473-4d5b-bfee-c6598cf1e522}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Factorize">
+      <UniqueIdentifier>{5e952a7a-1a08-4c35-b089-d0958a84f02f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SkipListEBR.cpp">
@@ -11,6 +14,9 @@
     </ClCompile>
     <ClCompile Include="DivisionSet.cpp">
       <Filter>SkipList</Filter>
+    </ClCompile>
+    <ClCompile Include="Factorize.cpp">
+      <Filter>Factorize</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
