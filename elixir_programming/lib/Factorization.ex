@@ -98,8 +98,6 @@ defmodule Factorization do
   end
 
   defp factorize_parallel(n, [p | rest], factors) do
-    parent = self()
-
     task =
       Task.async(fn ->
         factorize_div(n, p, [])
@@ -161,6 +159,75 @@ defmodule Factorization do
   defp prime_list([], _), do: []
   defp prime_list([h | t], max) do
     [h | prime_list(Enum.reject(t, fn x -> rem(x, h) == 0 end), max)]
+  end
+
+  # C++ 코드를 기반으로 해결
+  def factorize_cpp(n) do
+    start_time = System.monotonic_time(:microsecond)
+    parent = self()
+    max_divisor = :math.sqrt(n) |> trunc()
+    result = recursive_divide(n, 2)
+
+    # TODO : Set 으로 none prime 들 관리
+    # TODO : recieve 받아서 set에 추가
+    set = MapSet
+
+    list = 3..max_divisor//2
+    |> Enum.map(fn x ->
+          unless MapSet.member?(set, x) do
+            Task.async(fn  -> worker(n, x, max_divisor, parent) end)
+          end
+        end)
+    |> Enum.map(&Task.await/1)
+
+    result = result ++ List.flatten(list)
+    remain = div(n, Enum.reduce(result, 1, &(&1 * &2)))
+    result = if remain != 1 do
+      result ++ [remain]
+    else
+      result
+    end
+    end_time = System.monotonic_time(:microsecond)
+    elapsed_time = end_time - start_time
+    IO.puts("C++ Execution time: #{elapsed_time} µs")
+    result
+  end
+
+  defp worker(n, p, max_divisor, parent) do
+    # 인수 판단 및 에라토스테네스의 채
+    if (:math.pow(p, 2) <= n) do
+      result = recursive_divide(n, p)
+      Enum.each(p..max_divisor, fn x ->
+        if rem(x, p) == 0 do
+          send(parent, {:sieve, x})
+        end
+      end)
+      result
+    else
+      []
+    end
+  end
+
+  defp recursive_divide(n, p) when rem(n, p) == 0 do
+    if is_prime(p) do
+      [p | recursive_divide(div(n, p), p)]
+    else
+      []
+    end
+  end
+  defp recursive_divide(_, _), do: []
+
+  defp is_prime(n) when n <= 1, do: false
+  defp is_prime(2), do: true
+  defp is_prime(n) when rem(n, 2) == 0, do: false
+  defp is_prime(n), do: check_divisors(n, 3)
+  defp check_divisors(n, i) when i * i > n, do: true
+  defp check_divisors(n, i) do
+    if rem(n, i) == 0 do
+      false
+    else
+      check_divisors(n, i + 2)
+    end
   end
 
 end
