@@ -172,12 +172,12 @@ defmodule Factorization do
 
     3..max_divisor//2
     |> Enum.each(fn x ->
-      send(receiver_pid, {:maybe_task, n, x, max_divisor, parent})
+      send(receiver_pid, {:maybe_task, n, x, max_divisor})
     end)
 
     send(receiver_pid, :all_tasks_sent)
 
-    final_result = gather_results([], result)
+    final_result = gather_results(n, result)
 
     end_time = System.monotonic_time(:microsecond)
     elapsed_time = end_time - start_time
@@ -208,11 +208,11 @@ defmodule Factorization do
     end
   end
 
-  defp gather_results(acc, result) do
+  defp gather_results(n, result) do
     receive do
       {:final_results, list} ->
-        full = acc ++ list
-        remain = div(Enum.reduce(result, 1, &(&1 * &2)), Enum.reduce(full, 1, &(&1 * &2)))
+        full = result ++ list
+        remain = div(n, Enum.reduce(full, 1, &(&1 * &2)))
         if remain != 1, do: full ++ [remain], else: full
     end
   end
@@ -220,7 +220,11 @@ defmodule Factorization do
   defp worker(n, p, max_divisor, parent) do
     # 인수 판단 및 에라토스테네스의 채
     if (:math.pow(p, 2) <= n) do
-      result = recursive_divide(n, p)
+      result = if is_prime(p) do
+        recursive_divide(n, p)
+      else
+        []
+      end
       Enum.each(p..max_divisor, fn x ->
         if rem(x, p) == 0 do
           send(parent, {:sieve, x})
@@ -233,12 +237,7 @@ defmodule Factorization do
   end
 
   defp recursive_divide(n, p) when rem(n, p) == 0 do
-    # 아래 코드 손해임
-    if is_prime(p) do
-      [p | recursive_divide(div(n, p), p)]
-    else
-      []
-    end
+    [p | recursive_divide(div(n, p), p)]
   end
   defp recursive_divide(_, _), do: []
 
