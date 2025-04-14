@@ -166,9 +166,9 @@ defmodule Factorization do
     start_time = System.monotonic_time(:microsecond)
     parent = self()
     max_divisor = :math.sqrt(n) |> trunc()
-    result = recursive_divide(n, 2)
 
     receiver_pid = spawn(fn -> receive_loop(MapSet.new(), [], parent) end)
+    result = worker(n, 2, max_divisor, receiver_pid)
 
     3..max_divisor//2
     |> Enum.each(fn x ->
@@ -186,6 +186,7 @@ defmodule Factorization do
   end
 
   defp receive_loop(set, tasks, parent) do
+    self_pid = self()
     receive do
       {:maybe_task, n, p, max_divisor} ->
         if MapSet.member?(set, p) do
@@ -194,7 +195,7 @@ defmodule Factorization do
           new_set = MapSet.put(set, p)
           task =
             Task.async(fn  ->
-              worker(n, p, max_divisor, self())
+              worker(n, p, max_divisor, self_pid)
             end)
           receive_loop(new_set, [task | tasks], parent)
         end
@@ -220,15 +221,9 @@ defmodule Factorization do
   defp worker(n, p, max_divisor, parent) do
     # 인수 판단 및 에라토스테네스의 채
     if (:math.pow(p, 2) <= n) do
-      result = if is_prime(p) do
-        recursive_divide(n, p)
-      else
-        []
-      end
-      Enum.each(p..max_divisor, fn x ->
-        if rem(x, p) == 0 do
-          send(parent, {:sieve, x})
-        end
+      result = recursive_divide(n, p)
+      Enum.each(p..max_divisor//p, fn x ->
+        send(parent, {:sieve, x})
       end)
       result
     else
@@ -241,18 +236,18 @@ defmodule Factorization do
   end
   defp recursive_divide(_, _), do: []
 
-  defp is_prime(n) when n <= 1, do: false
-  defp is_prime(2), do: true
-  defp is_prime(n) when rem(n, 2) == 0, do: false
-  defp is_prime(n), do: check_divisors(n, 3)
-  defp check_divisors(n, i) when i * i > n, do: true
-  defp check_divisors(n, i) do
-    if rem(n, i) == 0 do
-      false
-    else
-      check_divisors(n, i + 2)
-    end
-  end
+  # defp is_prime(n) when n <= 1, do: false
+  # defp is_prime(2), do: true
+  # defp is_prime(n) when rem(n, 2) == 0, do: false
+  # defp is_prime(n), do: check_divisors(n, 3)
+  # defp check_divisors(n, i) when i * i > n, do: true
+  # defp check_divisors(n, i) do
+  #   if rem(n, i) == 0 do
+  #     false
+  #   else
+  #     check_divisors(n, i + 2)
+  #   end
+  # end
 
 end
 
@@ -299,5 +294,15 @@ Multi Execution time: 2644583 µs
 iex(17)> Factorization.factorize_gpt(52462044112)
 Multi Execution time: 2583757 µs
 [3278877757, 2, 2, 2, 2]
+
+
+iex(1)> Factorization.factorize_cpp(120)
+C++ Execution time: 3380 µs
+[2, 2, 2, 5, 3]
+iex(2)> Factorization.factorize_cpp(1213500)
+C++ Execution time: 20172 µs
+[2, 2, 809, 375, 125, 75, 25, 15, 5, 5, 5, 3, 0]
+iex(3)> Factorization.factorize_cpp(52462044112)
+... (시간 측정 불가)
 
 """
