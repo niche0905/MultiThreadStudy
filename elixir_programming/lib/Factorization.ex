@@ -249,6 +249,35 @@ defmodule Factorization do
   #   end
   # end
 
+  # Trial Division 방식
+  def factorize_trial(n) do
+    start_time = System.monotonic_time(:microsecond)
+
+    result = recursive_trial(n)
+
+    end_time = System.monotonic_time(:microsecond)
+    elapsed_time = end_time - start_time
+    IO.puts("Trial Division Execution time: #{elapsed_time} µs")
+    result
+  end
+
+  defp recursive_trial(n) do
+    max_divisor = :math.sqrt(n) |> trunc()
+    2..max_divisor
+    |> Enum.chunk_every(1000)
+    |> Enum.map(&Task.async(fn  -> find_divisor(n, &1) end))
+    |> Enum.flat_map(&Task.await(&1, 10_000))
+    |> case do
+      [] -> [n] # 소수인 경우
+      [d | _] -> [d | recursive_trial(div(n, d))]
+    end
+  end
+
+  defp find_divisor(n, candidates) do
+    Enum.filter(candidates, fn x -> rem(n, x) == 0 end)
+  end
+
+
 end
 
 
@@ -296,6 +325,7 @@ Multi Execution time: 2583757 µs
 [3278877757, 2, 2, 2, 2]
 
 
+# C++ 코드 기반반
 iex(1)> Factorization.factorize_cpp(120)
 C++ Execution time: 3380 µs
 [2, 2, 2, 5, 3]
@@ -304,5 +334,17 @@ C++ Execution time: 20172 µs
 [2, 2, 809, 375, 125, 75, 25, 15, 5, 5, 5, 3, 0]
 iex(3)> Factorization.factorize_cpp(52462044112)
 ... (시간 측정 불가)
+
+
+# Trial Division
+iex(1)> Factorization.factorize_trial(120)
+Trial Division Execution time: 5223 µs
+[2, 2, 2, 3, 5]
+iex(2)> Factorization.factorize_trial(1213500)
+Trial Division Execution time: 205 µs
+[2, 2, 3, 5, 5, 5, 809]
+iex(3)> Factorization.factorize_trial(52462044112)
+Trial Division Execution time: 39116 µs
+[2, 2, 2, 2, 3278877757]
 
 """
