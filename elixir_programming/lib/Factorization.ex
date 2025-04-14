@@ -168,29 +168,53 @@ defmodule Factorization do
     max_divisor = :math.sqrt(n) |> trunc()
     result = recursive_divide(n, 2)
 
-    # TODO : Set 으로 none prime 들 관리
-    # TODO : recieve 받아서 set에 추가
-    set = MapSet
+    receiver_pid = spawn(fn -> receive_loop(MapSet.new(), [], parent) end)
 
-    list = 3..max_divisor//2
-    |> Enum.map(fn x ->
-          unless MapSet.member?(set, x) do
-            Task.async(fn  -> worker(n, x, max_divisor, parent) end)
-          end
-        end)
-    |> Enum.map(&Task.await/1)
+    3..max_divisor//2
+    |> Enum.each(fn x ->
+      send(receiver_pid, {:maybe_task, n, x, max_divisor, parent})
+    end)
 
-    result = result ++ List.flatten(list)
-    remain = div(n, Enum.reduce(result, 1, &(&1 * &2)))
-    result = if remain != 1 do
-      result ++ [remain]
-    else
-      result
-    end
+    send(receiver_pid, :all_tasks_sent)
+
+    final_result = gather_results([], result)
+
     end_time = System.monotonic_time(:microsecond)
     elapsed_time = end_time - start_time
     IO.puts("C++ Execution time: #{elapsed_time} µs")
-    result
+    final_result
+  end
+
+  defp receive_loop(set, tasks, parent) do
+    receive do
+      {:maybe_task, n, p, max_divisor} ->
+        if MapSet.member?(set, p) do
+          receive_loop(set, tasks, parent)
+        else
+          new_set = MapSet.put(set, p)
+          task =
+            Task.async(fn  ->
+              worker(n, p, max_divisor, self())
+            end)
+          receive_loop(new_set, [task | tasks], parent)
+        end
+      {:sieve, x} ->
+        receive_loop(MapSet.put(set, x), tasks, parent)
+      :all_tasks_sent ->
+        results = tasks |> Enum.map(&Task.await/1)
+        send(parent, {:final_results, List.flatten(results)})
+      _ ->
+        receive_loop(set, tasks, parent)
+    end
+  end
+
+  defp gather_results(acc, result) do
+    receive do
+      {:final_results, list} ->
+        full = acc ++ list
+        remain = div(Enum.reduce(result, 1, &(&1 * &2)), Enum.reduce(full, 1, &(&1 * &2)))
+        if remain != 1, do: full ++ [remain], else: full
+    end
   end
 
   defp worker(n, p, max_divisor, parent) do
@@ -209,6 +233,7 @@ defmodule Factorization do
   end
 
   defp recursive_divide(n, p) when rem(n, p) == 0 do
+    # 아래 코드 손해임
     if is_prime(p) do
       [p | recursive_divide(div(n, p), p)]
     else
