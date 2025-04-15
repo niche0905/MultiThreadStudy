@@ -347,4 +347,30 @@ iex(3)> Factorization.factorize_trial(52462044112)
 Trial Division Execution time: 39116 µs
 [2, 2, 2, 2, 3278877757]
 
+
+#####################################
+
+  아래는 노트북으로 성능을 측정한 것!
+
+#####################################
+
+C++ 코드 속도
+Enter a number : 52462044112
+Exec Time : 3927ms.  Result = 2, 2, 2, 2, 3278877757
+Enter a number : 125435156554214
+Exec Time : 2762ms.  Result = 2, 13, 71, 887, 76606207
+Enter a number : 24547478845155684
+(성능 측정 불가...)
+
+Trial Division
+iex(2)> Factorization.factorize_trial(52462044112)
+Trial Division Execution time: 65639 µs
+[2, 2, 2, 2, 3278877757]
+iex(3)> Factorization.factorize_trial(125435156554214)
+Trial Division Execution time: 2322944 µs
+[2, 13, 71, 887, 76606207]
+iex(4)> Factorization.factorize_trial(24547478845155684)
+Trial Division Execution time: 42498663 µs
+[2, 2, 3, 11, 783283, 237418339]
+
 """
