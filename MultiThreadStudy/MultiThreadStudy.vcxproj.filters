@@ -18,5 +18,8 @@
     <ClCompile Include="Factorize.cpp">
       <Filter>Factorize</Filter>
     </ClCompile>
+    <ClCompile Include="Factorize2.cpp">
+      <Filter>Factorize</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

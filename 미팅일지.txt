@@ -245,3 +245,12 @@ int main()
 
 2. 다음에는 Lock Free Elimination Stack 
 3. 다음미팅 4월 15일 화요일 오후 7시
+
+2025-04-15
+-------------
+1.  위의 프로그램을 엘릭서에서 돌렸을 떄 process들의 속도차이로 인해서 factors 리스트에 소수가 아닌 수가 들어가는 경우가 있다. 그래서 소인수분해가 덜되는 경우가 생긴다.
+  => 수정된 알고리즘을 사용하면 된다.
+2. Lock Free Elimination Stack
+ => 논문을 구현해 보자  (https://people.csail.mit.edu/shanir/publications/Lock_Free.pdf)
+ => 수업시간에 구현한 Lock Free Back Off 스택과 성능을 비교해보자.
+3. 다음 미팅 4월 29일 화요일 오후 7시
