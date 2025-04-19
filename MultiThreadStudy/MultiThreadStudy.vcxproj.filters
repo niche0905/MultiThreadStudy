@@ -7,6 +7,9 @@
     <Filter Include="Factorize">
       <UniqueIdentifier>{5e952a7a-1a08-4c35-b089-d0958a84f02f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="EliminationStack">
+      <UniqueIdentifier>{0495f929-8f42-4461-bea9-6869625c2c53}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SkipListEBR.cpp">
@@ -20,6 +23,9 @@
     </ClCompile>
     <ClCompile Include="Factorize2.cpp">
       <Filter>Factorize</Filter>
+    </ClCompile>
+    <ClCompile Include="LockFreeStack.cpp">
+      <Filter>EliminationStack</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
