@@ -27,5 +27,8 @@
     <ClCompile Include="LockFreeStack.cpp">
       <Filter>EliminationStack</Filter>
     </ClCompile>
+    <ClCompile Include="ExCode.cpp">
+      <Filter>EliminationStack</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
