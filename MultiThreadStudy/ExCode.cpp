@@ -8,20 +8,11 @@
 
 constexpr int MAX_THREADS = 16;
 
-
-struct HISTORY {
-	std::vector <int> push_values, pop_values;
-};
-std::atomic_int stack_size;
-
 class NODE {
 public:
 	int	key;
 	NODE* volatile next;
-	NODE(int x = 0) : key(x), next(nullptr)
-	{
-
-	}
+	NODE(int x) : key(x), next(nullptr) {}
 };
 
 class DUMMYMUTEX
@@ -30,6 +21,11 @@ public:
 	void lock() {}
 	void unlock() {}
 };
+
+struct HISTORY {
+	std::vector <int> push_values, pop_values;
+};
+std::atomic_int stack_size;
 
 class C_STACK {
 	NODE* volatile m_top;
@@ -45,29 +41,25 @@ public:
 	}
 	void Push(int x)
 	{
-		NODE* new_node = new NODE(x);
-
-		std::lock_guard safe_guard(st_lock);
-
-		new_node->next = m_top;
-		m_top = new_node;
+		NODE* e = new NODE{ x };
+		st_lock.lock();
+		e->next = m_top;
+		m_top = e;
+		st_lock.unlock();
 	}
 	int Pop()
 	{
-		std::unique_lock safe_guard(st_lock);
-
-		if (nullptr == m_top)
+		st_lock.lock();
+		if (nullptr == m_top) {
+			st_lock.unlock();
 			return -2;
-
-		auto temp = m_top;
-		int return_value = temp->key;
+		}
+		int value = m_top->key;
+		NODE* temp = m_top;
 		m_top = m_top->next;
-
-		safe_guard.unlock();
-
+		st_lock.unlock();
 		delete temp;
-
-		return return_value;
+		return value;
 	}
 	void print20()
 	{
@@ -101,34 +93,25 @@ public:
 	}
 	void Push(int x)
 	{
-		NODE* new_node = new NODE(x);
-
-		while (true)
-		{
-			auto head = m_top;
-			new_node->next = head;
-
-			if (true == CAS(head, new_node))
+		NODE* e = new NODE{ x };
+		while (true) {
+			NODE* last = m_top;
+			e->next = last;
+			if (true == CAS(last, e))
 				return;
 		}
 	}
 	int Pop()
 	{
 		while (true) {
-			auto head = m_top;
-			if (nullptr == head)
+			NODE* volatile last = m_top;
+			if (nullptr == last)
 				return -2;
-
-			auto next = head->next;
-
-			if (head != m_top) continue;
-			int v = head->key;
-
-			if (true == CAS(head, next)) {
-				//delete head;
-
+			NODE* volatile next = last->next;
+			if (last != m_top) continue;
+			int v = last->key;
+			if (true == CAS(last, next))
 				return v;
-			}
 		}
 	}
 	void print20()
@@ -143,22 +126,74 @@ public:
 	}
 };
 
-class BackOff
-{
+class BackOff {
 	int minDelay, maxDelay;
 	int limit;
 public:
 	BackOff(int min, int max)
 		: minDelay(min), maxDelay(max), limit(min) {}
-	void InterruptedException()
-	{
+
+	void InterruptedException() {
 		int delay = 0;
 		if (limit != 0) delay = rand() % limit;
 		limit *= 2;
 		if (limit > maxDelay) limit = maxDelay;
-		std::this_thread::sleep_for(std::chrono::microseconds(delay));
+		std::this_thread::sleep_for(std::chrono::microseconds(delay));;
 	}
 };
+
+//class BackOff3 {
+//	int minDelay, maxDelay;
+//	int limit;
+//public:
+//	BackOff3(int min, int max)
+//		: minDelay(min), maxDelay(max), limit(min) {}
+//
+//	void InterruptedException() {
+//		int delay = 0;
+//		if (limit != 0)
+//			delay = rand() % limit;
+//		limit *= 2;
+//		if (limit > maxDelay)
+//			limit = maxDelay;
+//		int start, current;
+//		_asm RDTSC;
+//		_asm mov start, eax;
+//		do {
+//			_asm RDTSC;
+//			_asm mov current, eax;
+//		} while (current - start < delay);
+//	}
+//};
+
+//class  BackOff {
+//	int minDelay, maxDelay;
+//	int limit;
+//public:
+//	BackOff(int min, int max)
+//		: minDelay(min), maxDelay(max), limit(min) {}
+//
+//	void InterruptedException() {
+//		int delay = 0;
+//		if (0 != limit) delay = rand() % limit;
+//		if (0 == delay) return;
+//		limit += limit;
+//		if (limit > maxDelay) limit = maxDelay;
+//
+//		_asm mov eax, delay;
+//	myloop:
+//		_asm dec eax
+//		_asm jnz myloop;
+//
+//	}
+//	void decrement()
+//	{
+//		limit = limit / 2;
+//		if (limit < minDelay) limit = minDelay;
+//	}
+//};
+
+thread_local BackOff bo{ 1, 16 };
 
 class LF_BO_STACK {
 	NODE* volatile m_top;
@@ -180,41 +215,32 @@ public:
 	}
 	void Push(int x)
 	{
-		BackOff bo{ 1, 16 };
-
-		NODE* new_node = new NODE(x);
-
-		while (true)
-		{
-			auto head = m_top;
-			new_node->next = head;
-
-			if (true == CAS(head, new_node))
+		NODE* e = new NODE{ x };
+		while (true) {
+			NODE* last = m_top;
+			e->next = last;
+			if (true == CAS(last, e)) {
+				//bo.decrement();
 				return;
-
+			}
 			bo.InterruptedException();
+
 		}
 	}
 	int Pop()
 	{
-		BackOff bo{ 1, 16 };
-
 		while (true) {
-			auto head = m_top;
-			if (nullptr == head)
+			NODE* volatile last = m_top;
+			if (nullptr == last)
 				return -2;
-
-			auto next = head->next;
-
-			if (head != m_top) continue;
-			int v = head->key;
-
-			if (true == CAS(head, next)) {
-				//delete head;
+			NODE* volatile next = last->next;
+			if (last != m_top) continue;
+			int v = last->key;
+			if (true == CAS(last, next)) {
+				//bo.decrement();
 
 				return v;
 			}
-
 			bo.InterruptedException();
 		}
 	}
@@ -243,49 +269,42 @@ constexpr int MAX_LOOP = 10;
 
 class LockFreeExchanger {
 	volatile unsigned int slot;
-	unsigned int get_slot(unsigned int* v)
-	{	// 2 비트를 상태를 표현하기위해 사용
+	unsigned int get_slot(unsigned int* st)
+	{
 		unsigned t = slot;
-		*v = (t >> 30);
+		*st = t >> 30;
 		unsigned ret = t & 0x3FFFFFFF;
 		if (ret == 0x3FFFFFFF)
 			return 0xFFFFFFFF;
-		return ret;
+		else return ret;
 	}
 	unsigned int get_state()
 	{
-		return (slot >> 30);
+		return slot >> 30;
 	}
-	bool CAS(unsigned int old_v, unsigned int new_v, unsigned int old_st, unsigned int new_st)
+	bool CAS(unsigned old_v, unsigned new_v, unsigned old_st, unsigned new_st)
 	{
-		// 여기도 버그
-		// 값 v 가 바뀌어야 한다
-		unsigned int o_slot = (old_v & 0x3FFFFFFF) | (old_st << 30);
-		unsigned int n_slot = (new_v & 0x3FFFFFFF) | (new_st << 30);
-
+		unsigned int o_slot = (old_v & 0x3FFFFFFF) + (old_st << 30);
+		unsigned n_slot = (new_v & 0x3FFFFFFF) + (new_st << 30);
 		return std::atomic_compare_exchange_strong(
 			reinterpret_cast<volatile std::atomic_uint*>(&slot),
-			&o_slot, n_slot
-		);
+			&o_slot, n_slot);
 	}
 public:
 	int exchange(int v)
 	{
-		unsigned int st = 0;
+		unsigned st = 0;
 		for (int i = 0; i < MAX_LOOP; ++i) {
 			unsigned int old_v = get_slot(&st);
-
-			switch (st)
-			{
+			switch (st) {
 			case ST_EMPTY:
 				if (true == CAS(old_v, v, ST_EMPTY, ST_WAIT)) {
 					bool time_out = true;
-					for (int j = 0; j < MAX_LOOP; ++j) {
-						if (ST_WAIT == get_state())
-							continue;
-						time_out = false;
-						break;
-					}
+					for (int j = 0; j < MAX_LOOP; ++j)
+						if (ST_WAIT != get_state()) {
+							time_out = false;
+							break;
+						}
 
 					if (false == time_out) {
 						int ret = get_slot(&st);
@@ -294,7 +313,7 @@ public:
 					}
 					else {
 						if (true == CAS(v, 0, ST_WAIT, ST_EMPTY))
-							return RET_TIMEOUT;		// 기다려조 오지 않아서 리턴
+							return RET_TIMEOUT;			// 기다려도 오지 않아서 리턴
 						else {
 							int ret = get_slot(&st);
 							slot = 0;
@@ -314,8 +333,7 @@ public:
 				exit(-1);
 			}
 		}
-
-		return RET_BUSYTIMEOUT;		// 너무 바빠서 (경쟁이 심해서)
+		return RET_BUSYTIMEOUT;
 	}
 };
 
@@ -330,25 +348,20 @@ public:
 		int ret = exchanger[slot].exchange(value);
 
 		int old_range = range;
-		if (ret == RET_BUSYTIMEOUT) {	// TIME OUT
-			if (old_range < MAX_EXCHANGER - 1) {	// 방이 적어서 늘림
+		if (ret == RET_BUSYTIMEOUT) {
+			if (old_range < MAX_EXCHANGER - 1)
 				std::atomic_compare_exchange_strong(
-					reinterpret_cast<std::atomic_int*>(&range),
-					&old_range, old_range + 1);
-			}
+					reinterpret_cast<std::atomic_int*>(&range)
+					, &old_range, old_range + 1);
 		}
 		else if (ret == RET_TIMEOUT) {
-			if (old_range > 1) {	// 방이 많아서 줄임
-				std::atomic_compare_exchange_strong(
-					reinterpret_cast<std::atomic_int*>(&range),
-					&old_range, old_range - 1);
-			}
+			if (old_range > 1) std::atomic_compare_exchange_strong(
+				reinterpret_cast<std::atomic_int*>(&range)
+				, &old_range, old_range - 1);
 		}
 		else {
-			// 소거 된거임
-			//std::cout << "el";
+			// std::cout << "el";
 		}
-
 		return ret;
 	}
 };
@@ -375,19 +388,13 @@ public:
 	}
 	void Push(int x)
 	{
-		BackOff bo{ 1, 16 };
-
-		NODE* new_node = new NODE(x);
-
-		while (true)
-		{
-			auto head = m_top;
-			new_node->next = head;
-
-			if (true == CAS(head, new_node))
+		NODE* e = new NODE{ x };
+		while (true) {
+			NODE* last = m_top;
+			e->next = last;
+			if (true == CAS(last, e)) {
 				return;
-
-			//bo.InterruptedException();
+			}
 			int ret = m_earr.Visit(x);
 			if (ret == RET_POP)
 				return;
@@ -395,25 +402,16 @@ public:
 	}
 	int Pop()
 	{
-		BackOff bo{ 1, 16 };
-
 		while (true) {
-			auto head = m_top;
-			if (nullptr == head)
+			NODE* volatile last = m_top;
+			if (nullptr == last)
 				return -2;
-
-			auto next = head->next;
-
-			if (head != m_top) continue;
-			int v = head->key;
-
-			if (true == CAS(head, next)) {
-				//delete head;
-
+			NODE* volatile next = last->next;
+			if (last != m_top) continue;
+			int v = last->key;
+			if (true == CAS(last, next)) {
 				return v;
 			}
-
-			//bo.InterruptedException();
 			int ret = m_earr.Visit(RET_POP);
 			if (ret >= 0) return ret;
 		}
@@ -430,24 +428,20 @@ public:
 	}
 };
 
-const int NUM_TEST = 10000000;
-
 LF_EL_STACK my_stack;
 thread_local int thread_id;
 
-void benchmark(const int th_id, const int num_thread)
+const int NUM_TEST = 10000000;
+
+void benchmark(const int num_thread)
 {
 	int key = 0;
 	int loop_count = NUM_TEST / num_thread;
-	thread_id = th_id;
-
-	for (int i = 0; i < loop_count; i++) {
-		if ((i < 32) || (rand() % 2 == 0)) {
+	for (auto i = 0; i < loop_count; ++i) {
+		if ((rand() % 2 == 0) || (i < 1000))
 			my_stack.Push(key++);
-		}
-		else {
+		else
 			my_stack.Pop();
-		}
 	}
 }
 
@@ -462,13 +456,13 @@ void benchmark_test(const int th_id, const int num_threads, HISTORY& h)
 			my_stack.Push(i);
 		}
 		else {
-			stack_size--;
+			volatile int curr_size = stack_size--;
 			int res = my_stack.Pop();
 			if (res == -2) {
 				stack_size++;
-				if (stack_size > (num_threads * 2 + 2)) {
-					//std::cout << "ERROR Non_Empty Stack Returned NULL\n";
-					//exit(-1);
+				if ((curr_size > num_threads * 2) && (stack_size > num_threads)) {
+					std::cout << "ERROR Non_Empty Stack Returned NULL\n";
+					exit(-1);
 				}
 			}
 			else h.pop_values.push_back(res);
@@ -505,7 +499,7 @@ void check_history(std::vector <HISTORY>& h)
 			std::multiset <int> sorted;
 			for (auto num : poped)
 				sorted.insert(num);
-			std::cout << "There was elements in the STACK no one pushed : ";
+			std::cout << "There were elements in the STACK no one pushed : ";
 			int count = 20;
 			for (auto num : sorted)
 				std::cout << num << ", ";
@@ -516,50 +510,43 @@ void check_history(std::vector <HISTORY>& h)
 	std::cout << "NO ERROR detectd.\n";
 }
 
-
 int main()
 {
 	using namespace std::chrono;
 
-	// 오류 검사
-	/*{
-		for (int n = 1; n <= MAX_THREADS; n = n * 2) {
-			my_stack.clear();
-			std::vector<std::thread> tv;
-			std::vector<HISTORY> history;
-			history.resize(n);
-			auto start_t = high_resolution_clock::now();
-			for (int i = 0; i < n; ++i) {
-				tv.emplace_back(benchmark_test, i, n, std::ref(history[i]));
-			}
-			for (auto& th : tv)
-				th.join();
-			auto end_t = high_resolution_clock::now();
-			auto exec_t = end_t - start_t;
-			size_t ms = duration_cast<milliseconds>(exec_t).count();
-			std::cout << n << " Threads,  " << ms << "ms. ----";
-			my_stack.print20();
-			check_history(history);
+	for (int n = 1; n <= MAX_THREADS; n = n * 2) {
+		my_stack.clear();
+		std::vector<std::thread> tv;
+		std::vector<HISTORY> history;
+		history.resize(n);
+		stack_size = 0;
+		auto start_t = high_resolution_clock::now();
+		for (int i = 0; i < n; ++i) {
+			tv.emplace_back(benchmark_test, i, n, std::ref(history[i]));
 		}
-	}*/
+		for (auto& th : tv)
+			th.join();
+		auto end_t = high_resolution_clock::now();
+		auto exec_t = end_t - start_t;
+		size_t ms = duration_cast<milliseconds>(exec_t).count();
+		std::cout << n << " Threads,  " << ms << "ms. ----";
+		my_stack.print20();
+		check_history(history);
+	}
 
-	// 무잠금 큐 (Stamp Pointer 사용)
-	{
-		for (int n = 1; n <= MAX_THREADS; n = n * 2) {
-			my_stack.clear();
-
-			std::vector<std::thread> tv;
-			auto start_t = high_resolution_clock::now();
-			for (int i = 0; i < n; ++i) {
-				tv.emplace_back(benchmark, i, n);
-			}
-			for (auto& th : tv)
-				th.join();
-			auto end_t = high_resolution_clock::now();
-			auto exec_t = end_t - start_t;
-			size_t ms = duration_cast<milliseconds>(exec_t).count();
-			std::cout << n << " Threads,  " << ms << "ms. ----";
-			my_stack.print20();
+	for (int n = 1; n <= MAX_THREADS; n = n * 2) {
+		my_stack.clear();
+		std::vector<std::thread> tv;
+		auto start_t = high_resolution_clock::now();
+		for (int i = 0; i < n; ++i) {
+			tv.emplace_back(benchmark, n);
 		}
+		for (auto& th : tv)
+			th.join();
+		auto end_t = high_resolution_clock::now();
+		auto exec_t = end_t - start_t;
+		size_t ms = duration_cast<milliseconds>(exec_t).count();
+		std::cout << n << " Threads,  " << ms << "ms. ----";
+		my_stack.print20();
 	}
 }
