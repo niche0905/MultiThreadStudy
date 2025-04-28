@@ -176,7 +176,7 @@ struct LockFreeEliminationStack
 				p->spin <<= 1;
 			}
 
-			if (location[thread_id].CAS(p, nullptr)) {	// 소거 됨 (누군가 가져감)
+			if (false == location[thread_id].CAS(p, nullptr)) {	// 소거 됨 (누군가 가져감)
 				location[thread_id].ptr = nullptr;
 				return;
 			}
@@ -240,7 +240,7 @@ struct LockFreeEliminationStack
 				p->spin <<= 1;
 			}
 
-			if (location[thread_id].CAS(p, nullptr)) {	// 소거 됨 (누군가 가져감)
+			if (false == location[thread_id].CAS(p, nullptr)) {	// 소거 됨 (누군가 가져감)
 				int num = location[thread_id].ptr->node->key;
 				location[thread_id].ptr = nullptr;
 				return num;
