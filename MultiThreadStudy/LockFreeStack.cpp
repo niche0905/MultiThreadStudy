@@ -111,8 +111,7 @@ struct LockFreeEliminationStack
 
 	int get_random_pos()
 	{
-		int base = range.current_range / 2;
-		return (rand() % range.current_range) + base;
+		return (rand() % range.current_range);
 	}
 
 	void Clear()
