@@ -148,7 +148,7 @@ struct LockFreeEliminationStack
 				him = collision[pos].val;
 			if (him != EMPTY) {
 				ThreadInfo* q = location[him].ptr;	// 스레드 정보 가져오기
-				if (q != nullptr && q->id == him && q->op == p->op) {
+				if (q != nullptr && q->id == him && q->op != p->op) {
 					if (true == location[thread_id].CAS(p, nullptr)) {	// 소거되지 않음 아무도 안찾아옴
 						// 내가 접촉(충돌) 시도
 						if (location[him].CAS(q, p)) {	// 바로 소거 성공 - 높은 부하일 확률 높음
@@ -210,7 +210,7 @@ struct LockFreeEliminationStack
 				him = collision[pos].val;
 			if (him != EMPTY) {
 				ThreadInfo* q = location[him].ptr;	// 스레드 정보 가져오기
-				if (q != nullptr && q->id == him && q->op == p->op) {
+				if (q != nullptr && q->id == him && q->op != p->op) {
 					if (true == location[thread_id].CAS(p, nullptr)) {	// 소거되지 않음 아무도 안찾아옴
 						// 내가 접촉(충돌) 시도
 						if (location[him].CAS(q, p)) {	// 바로 소거 성공 - 높은 부하일 확률 높음
