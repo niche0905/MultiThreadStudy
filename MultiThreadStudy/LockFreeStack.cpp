@@ -181,6 +181,71 @@ struct LockFreeEliminationStack
 			}
 		}
 	}
+
+	int Pop()
+	{
+		ThreadInfo* p = new ThreadInfo(thread_id, 'Q', nullptr);	// 스레드 정보 저장
+
+		while (true) {
+			POP:
+
+			Node* old_top = top;
+			if (old_top == nullptr) {
+				return EMPTY;	// 비어있음
+			}
+			Node* new_top = old_top->next;
+			if (CAS(old_top, new_top)) {
+				range.shrink();
+				int num = old_top->key;
+				//delete old_top;	// 노드 삭제
+				return num;	// 성공적으로 pop 됨
+			}
+
+			if (location[thread_id].ptr == nullptr)
+				location[thread_id].ptr = p;
+			int pos = get_random_pos();
+			int him = collision[pos].val;	// 타 스레드 번호
+			while (false == collision[pos].CAS(him, thread_id))	// 경쟁이 치열해서 소거도 실패함
+				him = collision[pos].val;
+			if (him != EMPTY) {
+				ThreadInfo* q = location[him].ptr;	// 스레드 정보 가져오기
+				if (q != nullptr && q->id == him && q->op == p->op) {
+					if (true == location[thread_id].CAS(p, nullptr)) {	// 소거되지 않음 아무도 안찾아옴
+						// 내가 접촉(충돌) 시도
+						if (location[him].CAS(q, p)) {	// 바로 소거 성공 - 높은 부하일 확률 높음
+							int num = q->node->key;
+							range.expand();
+							return num;
+						}
+						else {
+							goto POP;	// 바로 다시 중앙 스택 push 시도
+						}
+					}
+					else {	// 소거 됨 (누군가 가져감) - 높은 부하일 확률 높음
+						int num = location[thread_id].ptr->node->key;
+						range.expand();
+						location[thread_id].ptr = nullptr;
+						return num;
+					}
+				}
+			}
+
+			// back off (일정 시간 기다림)
+			for (int i = 0; i < p->spin; ++i) {
+				_mm_pause();
+			}
+			// spin 지수로 증가
+			if (p->spin < MAX_SPIN) {
+				p->spin <<= 1;
+			}
+
+			if (location[thread_id].CAS(p, nullptr)) {	// 소거 됨 (누군가 가져감)
+				int num = location[thread_id].ptr->node->key;
+				location[thread_id].ptr = nullptr;
+				return num;
+			}
+		}
+	}
 	
 };
 
