@@ -9,6 +9,7 @@
 constexpr int CACHE_LINE_SIZE = 64;		// 캐시라인 크기 (Cache Thrasing 방지)
 constexpr int MAX_THREADS = 16;			// 최대 스레드 수
 
+const int NUM_TEST = 10000000;
 
 struct Node 
 {
@@ -58,7 +59,7 @@ struct alignas(CACHE_LINE_SIZE) Integer
 	}
 };
 
-int now_thread_num;
+volatile int now_thread_num;
 
 struct RangePolicy
 {
@@ -247,5 +248,56 @@ struct LockFreeEliminationStack
 		}
 	}
 	
+	void Print20()
+	{
+		Node* p = top;
+		for (int i = 0; i < 20; ++i) {
+			if (p == nullptr) break;
+			std::cout << p->key << " ";
+			p = p->next;
+		}
+		std::cout << std::endl;
+	}
 };
 
+LockFreeEliminationStack stack;
+
+void benchmark(const int th_id)
+{
+	thread_id = th_id;
+
+	int key = 0;
+	int loop_count = NUM_TEST / now_thread_num;
+
+	for (auto i = 0; i < loop_count; ++i) {
+		if ((rand() & 1) == 0) {
+			stack.Push(key++);	// Push
+		}
+		else {
+			stack.Pop();		// Pop
+		}
+	}
+}
+
+int main()
+{
+	using namespace std::chrono;
+
+	for (int n = 1; n <= MAX_THREADS; n = n * 2) {
+		stack.Clear();
+		now_thread_num = n;
+		std::vector<std::thread> tv;
+		tv.reserve(n);
+		auto start_t = high_resolution_clock::now();
+		for (int i = 0; i < n; ++i) {
+			tv.emplace_back(benchmark, i);
+		}
+		for (auto& th : tv)
+			th.join();
+		auto end_t = high_resolution_clock::now();
+		auto exec_t = end_t - start_t;
+		size_t ms = duration_cast<milliseconds>(exec_t).count();
+		std::cout << n << " Threads,  " << ms << "ms. ----";
+		stack.Print20();
+	}
+}
