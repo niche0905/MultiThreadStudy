@@ -265,6 +265,8 @@ void benchmark(const int th_id)
 {
 	thread_id = th_id;
 
+	range.init(2 * now_thread_num);
+
 	int key = 0;
 	int loop_count = NUM_TEST / now_thread_num;
 
