@@ -132,6 +132,7 @@ struct LockFreeEliminationStack
 			PUSH:	// 소거를 시도하였지만 실패한 경우 다시 (왜 back off 하지 않는지 모르겠음)
 
 			Node* old_top = top;
+			new_node->next = old_top;
 			if (true == CAS(old_top, new_node)) {
 				range.shrink();
 				return;	// 성공적으로 푸시됨 (중앙 스택에 바로,,, 가장 깔끔한 적은 부하의 상황)
