@@ -5,6 +5,7 @@
 #include <vector>
 #include <set>	// 에러체크를 위해
 #include <xmmintrin.h>	// _mm_pause() 사용을 위한 헤더 (sleep의 대신 사용)
+#include <unordered_set>
 
 constexpr int CACHE_LINE_SIZE = 64;		// 캐시라인 크기 (Cache Thrasing 방지)
 constexpr int MAX_THREADS = 16;			// 최대 스레드 수
@@ -88,6 +89,7 @@ struct RangePolicy
 
 thread_local int thread_id;	// 스레드 ID
 thread_local RangePolicy range(2 * now_thread_num);
+std::atomic_int g_el_success = 0;
 
 constexpr int EMPTY = -1;	// 비어있음 (collision)
 
@@ -153,6 +155,7 @@ struct LockFreeEliminationStack
 						// 내가 접촉(충돌) 시도
 						if (location[him].CAS(q, p)) {	// 바로 소거 성공 - 높은 부하일 확률 높음
 							range.expand();
+							g_el_success++;
 							return;
 						}
 						else {
@@ -281,9 +284,110 @@ void benchmark(const int th_id)
 	}
 }
 
+struct HISTORY {
+	std::vector <int> push_values, pop_values;
+};
+std::atomic_int stack_size;
+
+void check_history(std::vector <HISTORY>& h)
+{
+	std::unordered_multiset <int> pushed, poped, in_stack;
+
+	for (auto& v : h)
+	{
+		for (auto num : v.push_values) pushed.insert(num);
+		for (auto num : v.pop_values) poped.insert(num);
+		while (true) {
+			int num = stack.Pop();
+			if (num == -1) break;
+			poped.insert(num);
+		}
+	}
+	for (auto num : pushed) {
+		if (poped.count(num) < pushed.count(num)) {
+			std::cout << "Pushed Number " << num << " does not exists in the STACK.\n";
+			exit(-1);
+		}
+		if (poped.count(num) > pushed.count(num)) {
+			std::cout << "Pushed Number " << num << " is poped more than " << poped.count(num) - pushed.count(num) << " times.\n";
+			exit(-1);
+		}
+	}
+	std::multiset <int> sorted;
+	for (auto num : poped) {
+		if (-1 == num) continue;
+		if (pushed.count(num) == 0) {
+			sorted.insert(num);
+		}
+	}
+	if (false == sorted.empty()) {
+		std::cout << "There were elements in the STACK no one pushed : ";
+		int count = 20;
+		for (auto num : sorted) {
+			if (0 == count--) break;
+			std::cout << num << ", ";
+		}
+		std::cout << std::endl;
+		exit(-1);
+	}
+	std::cout << "NO ERROR detectd.\n";
+}
+
+void benchmark_test(const int th_id, const int num_threads, HISTORY& h)
+{
+	thread_id = th_id;
+
+	range.init(2 * num_threads);
+
+	int loop_count = NUM_TEST / num_threads;
+	for (int i = 0; i < loop_count; i++) {
+		if ((rand() % 2) || i < 128 / num_threads) {
+			h.push_values.push_back(i);
+			stack_size++;
+			stack.Push(i);
+		}
+		else {
+			volatile int curr_size = stack_size--;
+			int res = stack.Pop();
+			if (res == -2) {
+				stack_size++;
+				if ((curr_size > num_threads * 2) && (stack_size > num_threads)) {
+					std::cout << "ERROR Non_Empty Stack Returned NULL\n";
+					exit(-1);
+				}
+			}
+			else h.pop_values.push_back(res);
+		}
+	}
+}
+
 int main()
 {
 	using namespace std::chrono;
+
+	for (int n = 1; n <= MAX_THREADS; n = n * 2) {
+		stack.Clear();
+		std::vector<std::thread> tv;
+		std::vector<HISTORY> history;
+		history.resize(n);
+		stack_size = 0;
+		g_el_success = 0;
+		auto start_t = high_resolution_clock::now();
+		for (int i = 0; i < n; ++i) {
+			tv.emplace_back(benchmark_test, i, n, std::ref(history[i]));
+		}
+		for (auto& th : tv)
+			th.join();
+		auto end_t = high_resolution_clock::now();
+		auto exec_t = end_t - start_t;
+		size_t ms = duration_cast<milliseconds>(exec_t).count();
+		std::cout << n << " Threads,  " << ms << "ms. ----";
+		std::cout << "Num Eliminations = " << g_el_success << ",   ";
+		stack.Print20();
+		check_history(history);
+	}
+
+
 
 	for (int n = 1; n <= MAX_THREADS; n = n * 2) {
 		stack.Clear();

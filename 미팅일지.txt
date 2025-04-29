@@ -222,7 +222,7 @@ int main()
 
 		while (index - done_threads.size() >= std::thread::hardware_concurrency()) {
 			//std::this_thread::sleep_for(1ms);
-			std::this_thread::yield();
+			std::this_thread::yield(2);
 			sqrt_n = sqrt(g_n);
 		}
 
@@ -254,3 +254,13 @@ int main()
  => 논문을 구현해 보자  (https://people.csail.mit.edu/shanir/publications/Lock_Free.pdf)
  => 수업시간에 구현한 Lock Free Back Off 스택과 성능을 비교해보자.
 3. 다음 미팅 4월 29일 화요일 오후 7시
+
+2025-04-29
+--------------
+1. Lock Free Elimination Stack
+  - 성능이 별로다.
+  - 성능에 영향을 끼치는 것이, range를 조절하는 기법하고, delay를 조절하는 기법인데 이걸 그냥 아무렇게나 구현하니까 성능이 낮게 나올수 밖에 없음.
+    논문에 적혀있는 논문을 보고 구현을 할 것.
+
+2. 다음 미팅
+ - 5월 13일 화요일 오후 7시
