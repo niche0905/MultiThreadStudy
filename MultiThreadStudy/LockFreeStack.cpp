@@ -269,11 +269,11 @@ void benchmark(const int th_id)
 	int loop_count = NUM_TEST / now_thread_num;
 
 	for (auto i = 0; i < loop_count; ++i) {
-		if ((rand() & 1) == 0) {
-			stack.Push(key++);	// Push
+		if ((i < 32) || ((rand() % 2) == 0)) {
+			stack.Push(key++);
 		}
 		else {
-			stack.Pop();		// Pop
+			stack.Pop();
 		}
 	}
 }
