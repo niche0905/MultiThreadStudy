@@ -115,7 +115,9 @@ struct LockFreeEliminationStack
 	int GetPosition()
 	{
 		//return (rand() % range.current_range);	// 균등 분포로 메인 논문의 방식
-		// TODO : 개선된 방법으로 바꿔야 함 (지수 분포 방식으로)
+		int now_range = range.current_range;
+		return (rand() % (now_range / 2)) + (now_range / 4);	// 중앙 집중 분포로 메인 논문의 방식
+																// woudenberg 논문의 11page에서 중앙 집중 분포를 사용한 성능 비교 참고
 	}
 
 	void Clear()
