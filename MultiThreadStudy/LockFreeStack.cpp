@@ -76,6 +76,7 @@ struct RangePolicy
 		max_range = max;
 	}
 
+	// TODO : RangePolicy를 스레드 로컬 정책으로 병목 현상을 해결해야 함
 	void expand()
 	{
 		current_range = std::min(current_range * 2, max_range);
@@ -111,9 +112,10 @@ struct LockFreeEliminationStack
 			reinterpret_cast<long long>(new_val));
 	}
 
-	int get_random_pos()
+	int GetPosition()
 	{
-		return (rand() % range.current_range);
+		//return (rand() % range.current_range);	// 균등 분포로 메인 논문의 방식
+		// TODO : 개선된 방법으로 바꿔야 함 (지수 분포 방식으로)
 	}
 
 	void Clear()
@@ -144,7 +146,7 @@ struct LockFreeEliminationStack
 
 			if (location[thread_id].ptr == nullptr)
 				location[thread_id].ptr = p;
-			int pos = get_random_pos();
+			int pos = GetPosition();
 			int him = collision[pos].val;	// 타 스레드 번호
 			while (false == collision[pos].CAS(him, thread_id))	// 경쟁이 치열해서 소거도 실패함
 				him = collision[pos].val;
@@ -207,7 +209,7 @@ struct LockFreeEliminationStack
 
 			if (location[thread_id].ptr == nullptr)
 				location[thread_id].ptr = p;
-			int pos = get_random_pos();
+			int pos = GetPosition();
 			int him = collision[pos].val;	// 타 스레드 번호
 			while (false == collision[pos].CAS(him, thread_id))	// 경쟁이 치열해서 소거도 실패함
 				him = collision[pos].val;
@@ -261,6 +263,15 @@ struct LockFreeEliminationStack
 		}
 		std::cout << std::endl;
 	}
+
+private:
+	bool HybridExchange()
+	{
+		// TODO : HybridExchange 구현
+		// 1. 스핀으로 계속 시도
+		// 2. 적응형 sleep으로 지수 back off
+	}
+
 };
 
 LockFreeEliminationStack stack;
