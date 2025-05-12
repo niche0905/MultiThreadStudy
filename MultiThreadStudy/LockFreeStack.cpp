@@ -216,7 +216,7 @@ struct LockFreeEliminationStack
 
 			location[thread_id].ptr = &p;
 			if (TryEliminate(p)) {
-				int num = p.node->key;
+				int num = p.node->key;	// p노드가 nullptr임 지역 변수가 사라진 듯 함
 				range.expand();
 				g_el_success++;
 				//delete p.node;
