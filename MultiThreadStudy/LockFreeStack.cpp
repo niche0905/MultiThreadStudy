@@ -134,7 +134,7 @@ struct LockFreeEliminationStack
 	void Push(int num)
 	{
 		Node* new_node = new Node(num);
-		ThreadInfo p{ thread_id, 'P', new_node };	// 스레드 정보 저장
+		ThreadInfo* p = new ThreadInfo{ thread_id, 'P', new_node };	// 스레드 정보 저장
 
 		while (true) {
 			Node* old_top = top;
@@ -145,14 +145,14 @@ struct LockFreeEliminationStack
 			// 실패한 경우
 			
 			// 충돌 시도
-			location[thread_id].ptr = &p;
+			location[thread_id].ptr = p;
 			if (TryEliminate(p)) {
 				range.expand();
 				g_el_success++;
 				return;	// 소거 성공
 			}
 			else {
-				p.spin = std::min(p.spin * 2, MAX_SPIN);	// spin 지수 증가
+				p->spin = std::min(p->spin * 2, MAX_SPIN);	// spin 지수 증가
 				range.shrink();								// 범위 축소
 			}
 
@@ -200,7 +200,7 @@ struct LockFreeEliminationStack
 
 	int Pop()
 	{
-		ThreadInfo p{ thread_id, 'Q', nullptr };	// 스레드 정보 저장
+		ThreadInfo* p = new ThreadInfo{ thread_id, 'Q', nullptr };	// 스레드 정보 저장
 
 		while (true) {
 			Node* old_top = top;
@@ -214,16 +214,16 @@ struct LockFreeEliminationStack
 				return num;	// 성공적으로 pop 됨
 			}
 
-			location[thread_id].ptr = &p;
+			location[thread_id].ptr = p;
 			if (TryEliminate(p)) {
-				int num = p.node->key;	// p노드가 nullptr임 지역 변수가 사라진 듯 함
+				int num = p->node->key;	// p노드가 nullptr임 지역 변수가 사라진 듯 함
 				range.expand();
 				g_el_success++;
 				//delete p.node;
 				return num;	
 			}
 			else {
-				p.spin = std::min(p.spin * 2, MAX_SPIN);	// spin 지수 증가
+				p->spin = std::min(p->spin * 2, MAX_SPIN);	// spin 지수 증가
 				range.shrink();								// 범위 축소
 			}
 
@@ -287,43 +287,43 @@ struct LockFreeEliminationStack
 	}
 
 private:
-	bool TryEliminate(ThreadInfo& info)
+	bool TryEliminate(ThreadInfo* info)
 	{
 		int pos = GetPosition();
 		int expected = EMPTY;	// 처음은 비어 있을 것이라 기대
 
 		int spin_cnt = 0;
 		if (collision[pos].CAS(expected, thread_id)) {	// 기다리기
-			while (spin_cnt < info.spin) {
+			while (spin_cnt < info->spin) {
 				_mm_pause();
 				// check elimination (성공이면 return)
 				if (location[thread_id].ptr->id != thread_id) {
-					info = *location[thread_id].ptr;	// 스레드 정보 가져오기
+					info = location[thread_id].ptr;	// 스레드 정보 가져오기
 					return true;
 				}
 				++spin_cnt;
 			}
 
-			if (true == location[thread_id].CAS(&info, nullptr)) {	// 소거 타임아웃 실패 (아무도 찾아오지 않음)
+			if (true == location[thread_id].CAS(info, nullptr)) {	// 소거 타임아웃 실패 (아무도 찾아오지 않음)
 				collision[pos].val = EMPTY;							// 충돌 정보 초기화
 				return false;
 			}
 			else {													// 소거 됨 (그새 누군가 가져감)
-				info = *location[thread_id].ptr;					// 스레드 정보 가져오기
+				info = location[thread_id].ptr;					// 스레드 정보 가져오기
 				location[thread_id].ptr = nullptr;
 				return true;
 			}
 		}
 		else {
-			while (spin_cnt < info.spin) {
+			while (spin_cnt < info->spin) {
 				_mm_pause();
 				int him = collision[pos].val;										// 타 스레드 번호
 				if (him != EMPTY) {		// 충돌 성공하였다면
 					ThreadInfo* q = location[him].ptr;								// 스레드 정보 가져오기
-					if (q != nullptr && q->id == him && q->op != info.op) {
+					if (q != nullptr && q->id == him && q->op != info->op) {
 						if (true == collision[pos].CAS(him, EMPTY)) {				// 소거 성공할 확률 증가
-							if (true == location[him].CAS(q, &info)) {				// 소거 성공
-								info = *q;
+							if (true == location[him].CAS(q, info)) {				// 소거 성공
+								info = q;
 								return true;
 							}
 							else {
