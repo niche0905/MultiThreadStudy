@@ -27,7 +27,7 @@ struct ThreadInfo
 	Node* node;
 	int spin;
 
-	ThreadInfo(int th_id, char now_op, Node* ptr, int init_spin = 0) : id(th_id), op(now_op), node(ptr), spin(init_spin) {}
+	ThreadInfo(int th_id, char now_op, Node* ptr, int init_spin = 1) : id(th_id), op(now_op), node(ptr), spin(init_spin) {}
 };
 
 struct alignas(CACHE_LINE_SIZE) ThreadInfoPtr 
@@ -35,6 +35,7 @@ struct alignas(CACHE_LINE_SIZE) ThreadInfoPtr
 	ThreadInfo* volatile ptr;
 
 	ThreadInfoPtr() : ptr(nullptr) {}
+	ThreadInfoPtr(ThreadInfo* p) : ptr(p) {}
 
 	bool CAS(ThreadInfo* old_ptr, ThreadInfo* new_ptr)
 	{
@@ -49,7 +50,8 @@ struct alignas(CACHE_LINE_SIZE) Integer
 {
 	int volatile val;
 
-	Integer() : val(0) {}
+	Integer() : val(-1) {}
+	Integer(int v) : val(v) {}
 
 	bool CAS(int old_val, int new_val)
 	{
@@ -96,13 +98,13 @@ constexpr int EMPTY = -1;	// 비어있음 (collision)
 
 struct LockFreeEliminationStack
 {
-	constexpr static int MAX_SPIN = 1 << 20;
+	constexpr static int MAX_SPIN = 1 << 16;
 
 	Node* volatile top;
 	std::vector<ThreadInfoPtr> location;
 	std::vector<Integer> collision;
 
-	LockFreeEliminationStack(int th_num = MAX_THREADS) : top(nullptr), location(th_num), collision(2 * th_num) {}
+	LockFreeEliminationStack(int th_num = MAX_THREADS) : top(nullptr), location(th_num), collision(2 * th_num, -1) {}
 
 	bool CAS(Node* old_val, Node* new_val)
 	{
@@ -146,17 +148,15 @@ struct LockFreeEliminationStack
 			
 			// 충돌 시도
 			location[thread_id].ptr = &p;
-			int pos = GetPosition();
-			int him = collision[pos].val;	// 타 스레드 번호
-			//bool collision_succeed try_eliminate(pos, him, p);
-
-			// 범위 조정
-			/*if (collision_succeed) {
+			if (TryEliminate(p)) {
 				range.expand();
+				g_el_success++;
+				return;	// 소거 성공
 			}
 			else {
-				range.shrink();
-			}*/
+				p.spin = std::min(p.spin * 2, MAX_SPIN);	// spin 지수 증가
+				range.shrink();								// 범위 축소
+			}
 
 			/* 기존 코드
 			while (false == collision[pos].CAS(him, thread_id))	// 경쟁이 치열해서 소거도 실패함
@@ -277,11 +277,38 @@ struct LockFreeEliminationStack
 	}
 
 private:
-	bool TryEliminate()
+	bool TryEliminate(ThreadInfo& info)
 	{
-		// TODO : TryEliminate 구현
-		// 1. collision 시도 (충돌 시도) <- 바꿀 수 있으면 바꾸고 / 빈자리라면 들어가서 대기
+		int pos = GetPosition();
+		int expected = EMPTY;	// 처음은 비어 있을 것이라 기대
 
+		int spin_cnt = 0;
+		if (collision[pos].CAS(expected, thread_id)) {	// 기다리기
+			while (spin_cnt < info.spin) {
+				_mm_pause();
+				// check elimination (성공이면 return)
+				++spin_cnt;
+			}
+		}
+		else {
+			while (spin_cnt < info.spin) {
+				_mm_pause();
+				// check elimination (성공이면 return)
+				/*
+				int him = collision[pos].val;	// 타 스레드 번호
+				ThreadInfo* q = location[him].ptr;	// 스레드 정보 가져오기
+				if (q != nullptr && q->id == him && q->op != info.op) {
+					if (location[him].CAS(q, &info)) {
+						return true;
+					}
+				}
+				collision[pos].CAS(thread_id, EMPTY);	// 소거 실패
+				return false;
+				*/
+				++spin_cnt;
+			}
+			
+		}
 	}
 
 };
