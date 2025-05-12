@@ -286,27 +286,45 @@ private:
 			while (spin_cnt < info.spin) {
 				_mm_pause();
 				// check elimination (성공이면 return)
+				if (location[thread_id].ptr->id != thread_id) {
+					info = *location[thread_id].ptr;	// 스레드 정보 가져오기
+					return true;
+				}
 				++spin_cnt;
+			}
+
+			if (true == location[thread_id].CAS(&info, nullptr)) {	// 소거 타임아웃 실패 (아무도 찾아오지 않음)
+				collision[pos].val = EMPTY;							// 충돌 정보 초기화
+				return false;
+			}
+			else {													// 소거 됨 (그새 누군가 가져감)
+				info = *location[thread_id].ptr;					// 스레드 정보 가져오기
+				location[thread_id].ptr = nullptr;
+				return true;
 			}
 		}
 		else {
 			while (spin_cnt < info.spin) {
 				_mm_pause();
-				// check elimination (성공이면 return)
-				/*
-				int him = collision[pos].val;	// 타 스레드 번호
-				ThreadInfo* q = location[him].ptr;	// 스레드 정보 가져오기
-				if (q != nullptr && q->id == him && q->op != info.op) {
-					if (location[him].CAS(q, &info)) {
-						return true;
+				int him = collision[pos].val;										// 타 스레드 번호
+				if (him != EMPTY) {		// 충돌 성공하였다면
+					ThreadInfo* q = location[him].ptr;								// 스레드 정보 가져오기
+					if (q != nullptr && q->id == him && q->op != info.op) {
+						if (true == collision[pos].CAS(him, EMPTY)) {				// 소거 성공할 확률 증가
+							if (true == location[him].CAS(q, &info)) {				// 소거 성공
+								info = *q;
+								return true;
+							}
+							else {
+								return false;										// 소거 실패 (누군가 가져감) <- 말이 되나?
+							}
+						}
 					}
 				}
-				collision[pos].CAS(thread_id, EMPTY);	// 소거 실패
-				return false;
-				*/
 				++spin_cnt;
 			}
 			
+			return false;
 		}
 	}
 
