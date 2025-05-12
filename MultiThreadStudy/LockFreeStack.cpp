@@ -136,8 +136,6 @@ struct LockFreeEliminationStack
 		ThreadInfo p{ thread_id, 'P', new_node };	// 스레드 정보 저장
 
 		while (true) {
-			PUSH:	// 소거를 시도하였지만 실패한 경우 다시 (왜 back off 하지 않는지 모르겠음)
-
 			Node* old_top = top;
 			new_node->next = old_top;
 			if (true == CAS(old_top, new_node)) {
@@ -201,23 +199,34 @@ struct LockFreeEliminationStack
 
 	int Pop()
 	{
-		ThreadInfo* p = new ThreadInfo(thread_id, 'Q', nullptr);	// 스레드 정보 저장
+		ThreadInfo p{ thread_id, 'Q', nullptr };	// 스레드 정보 저장
 
 		while (true) {
-			POP:
-
 			Node* old_top = top;
 			if (old_top == nullptr) {
 				return EMPTY;	// 비어있음
 			}
 			Node* new_top = old_top->next;
 			if (CAS(old_top, new_top)) {
-				range.shrink();
 				int num = old_top->key;
 				//delete old_top;	// 노드 삭제
 				return num;	// 성공적으로 pop 됨
 			}
 
+			location[thread_id].ptr = &p;
+			if (TryEliminate(p)) {
+				int num = p.node->key;
+				range.expand();
+				g_el_success++;
+				//delete p.node;
+				return num;	
+			}
+			else {
+				p.spin = std::min(p.spin * 2, MAX_SPIN);	// spin 지수 증가
+				range.shrink();								// 범위 축소
+			}
+
+			/* 기존 코드
 			if (location[thread_id].ptr == nullptr)
 				location[thread_id].ptr = p;
 			int pos = GetPosition();
@@ -261,6 +270,7 @@ struct LockFreeEliminationStack
 				location[thread_id].ptr = nullptr;
 				return num;
 			}
+			*/
 		}
 	}
 	
