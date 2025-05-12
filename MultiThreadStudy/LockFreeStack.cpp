@@ -117,6 +117,7 @@ struct LockFreeEliminationStack
 	{
 		//return (rand() % range.current_range);	// 균등 분포로 메인 논문의 방식
 		int now_range = range.current_range;
+		if (now_range < 2) return 0;							// 범위가 너무 작음 (zero division 방지)
 		return (rand() % (now_range / 2)) + (now_range / 4);	// 중앙 집중 분포로 서브 논문의 방식
 																// woudenberg 논문의 11page에서 중앙 집중 분포를 사용한 성능 비교 참고
 	}
