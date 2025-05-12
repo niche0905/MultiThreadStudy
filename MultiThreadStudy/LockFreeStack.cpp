@@ -78,7 +78,6 @@ struct RangePolicy
 		max_range = max;
 	}
 
-	// TODO : RangePolicy를 스레드 로컬 정책으로 병목 현상을 해결해야 함
 	void expand()
 	{
 		current_range = std::min(current_range * 2, max_range);
