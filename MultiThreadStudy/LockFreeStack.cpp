@@ -132,7 +132,7 @@ struct LockFreeEliminationStack
 	void Push(int num)
 	{
 		Node* new_node = new Node(num);
-		ThreadInfo* p = new ThreadInfo(thread_id, 'P', new_node);	// 스레드 정보 저장
+		ThreadInfo p{ thread_id, 'P', new_node };	// 스레드 정보 저장
 
 		while (true) {
 			PUSH:	// 소거를 시도하였지만 실패한 경우 다시 (왜 back off 하지 않는지 모르겠음)
@@ -140,16 +140,25 @@ struct LockFreeEliminationStack
 			Node* old_top = top;
 			new_node->next = old_top;
 			if (true == CAS(old_top, new_node)) {
-				range.shrink();
 				return;	// 성공적으로 푸시됨 (중앙 스택에 바로,,, 가장 깔끔한 적은 부하의 상황)
 			}
 			// 실패한 경우
-			// 경쟁이 치열하다고 판단
-
-			if (location[thread_id].ptr == nullptr)
-				location[thread_id].ptr = p;
+			
+			// 충돌 시도
+			location[thread_id].ptr = &p;
 			int pos = GetPosition();
 			int him = collision[pos].val;	// 타 스레드 번호
+			//bool collision_succeed try_eliminate(pos, him, p);
+
+			// 범위 조정
+			/*if (collision_succeed) {
+				range.expand();
+			}
+			else {
+				range.shrink();
+			}*/
+
+			/* 기존 코드
 			while (false == collision[pos].CAS(him, thread_id))	// 경쟁이 치열해서 소거도 실패함
 				him = collision[pos].val;
 			if (him != EMPTY) {
@@ -187,6 +196,7 @@ struct LockFreeEliminationStack
 				location[thread_id].ptr = nullptr;
 				return;
 			}
+			*/
 		}
 	}
 
@@ -267,11 +277,11 @@ struct LockFreeEliminationStack
 	}
 
 private:
-	bool HybridExchange()
+	bool TryEliminate()
 	{
-		// TODO : HybridExchange 구현
-		// 1. 스핀으로 계속 시도
-		// 2. 적응형 sleep으로 지수 back off
+		// TODO : TryEliminate 구현
+		// 1. collision 시도 (충돌 시도) <- 바꿀 수 있으면 바꾸고 / 빈자리라면 들어가서 대기
+
 	}
 
 };
