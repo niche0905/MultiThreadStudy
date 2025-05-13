@@ -263,4 +263,32 @@ int main()
     논문에 적혀있는 논문을 보고 구현을 할 것.
 
 2. 다음 미팅
- - 5월 13일 화요일 오후 7시
+ - 5월 13일 화요일 오후 7시 
+
+2025-05-13
+-------------
+1. 진행상황
+ - 최적화를 했는데 오류 발생
+ - 최적화 IDEA
+  * 소거배열을 선택할때 중앙에서 정규분포 랜덤으로 선택
+  * Range와 Delay를 thread_local로 선언해서 메모리 충돌을 회피
+
+  auto v = std::vector<int>(3);
+
+2. 비교
+ - https://cs.vu.nl/~wanf/theses/woudenberg-bscthesis.pdf
+
+3. 진행방향선회
+ - 무조건 빠른 것을 찾는 것이 아니라. 기존의 Lock Free Stack보다 빠르기만 하면 된다.
+ - 비교 대상 (단순무식 Lock-Free, 단순 무식 Lock-Free Back Off)  위의 논문의 소스코드를 사용해 보자.
+
+4. 다음 미팅
+ - 5월 27일 오후 7시
+
+5. 36 CORE Machine
+
+  ssh 210.93.61.41 -p 24 -l seungho
+
+
+
+  
