@@ -28,7 +28,6 @@ struct ThreadInfo
 	int id;
 	char op;
 	Node* node;
-	int spin;
 
 	ThreadInfo(int th_id, char now_op, Node* ptr, int init_spin = 1) : id(th_id), op(now_op), node(ptr), spin(init_spin) {}
 };
@@ -73,22 +72,29 @@ struct RangePolicy
 	int min_range;
 	int max_range;
 
-	RangePolicy(int max) : current_range(1), min_range(1), max_range(max) {}
+	int current_spin;
+
+	RangePolicy(int max) : current_range(1), min_range(1), max_range(max), current_spin(MIN_SPIN) {}
 
 	void init(int max)
 	{
 		current_range = 1;
 		max_range = max;
+		current_spin = MIN_SPIN;
 	}
 
+	// 소거에 성공한 상황
 	void expand()
 	{
 		current_range = std::min(current_range * 2, max_range);
+		current_spin = std::max(current_spin / 2, MIN_SPIN);
 	}
 
+	// 소거에 실패한 상황
 	void shrink()
 	{
 		current_range = std::max(current_range / 2, min_range);
+		current_spin = std::min(current_spin * 2, MAX_SPIN);
 	}
 };
 
@@ -158,8 +164,7 @@ struct LockFreeEliminationStack
 				return;	// 소거 성공
 			}
 			else {
-				p->spin = std::min(p->spin * 2, MAX_SPIN);	// spin 지수 증가
-				range.shrink();								// 범위 축소
+				range.shrink();	// 범위 축소
 			}
 		}
 	}
@@ -190,8 +195,7 @@ struct LockFreeEliminationStack
 				return num;	
 			}
 			else {
-				p->spin = std::min(p->spin * 2, MAX_SPIN);	// spin 지수 증가
-				range.shrink();								// 범위 축소
+				range.shrink();	// 범위 축소
 			}
 		}
 	}
@@ -215,7 +219,7 @@ private:
 
 		int spin_cnt = 0;
 		if (collision[pos].CAS(expected, thread_id)) {				// 기다리기
-			while (spin_cnt < info->spin) {
+			while (spin_cnt < range.current_spin) {
 				_mm_pause();
 				// check elimination (성공이면 return)
 				if (location[thread_id].ptr->id != thread_id) {
