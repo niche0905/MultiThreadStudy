@@ -29,7 +29,7 @@ struct ThreadInfo
 	char op;
 	Node* node;
 
-	ThreadInfo(int th_id, char now_op, Node* ptr, int init_spin = 1) : id(th_id), op(now_op), node(ptr), spin(init_spin) {}
+	ThreadInfo(int th_id, char now_op, Node* ptr) : id(th_id), op(now_op), node(ptr) {}
 };
 
 struct alignas(CACHE_LINE_SIZE) ThreadInfoPtr 
