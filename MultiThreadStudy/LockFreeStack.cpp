@@ -190,7 +190,6 @@ struct LockFreeEliminationStack
 			if (TryEliminate(p, matched_info)) {
 				int num = matched_info->node->key;	// p노드가 nullptr임 지역 변수가 사라진 듯 함
 				range.expand();
-				g_el_success++;
 				//delete p.node;
 				return num;	
 			}
