@@ -12,6 +12,9 @@ constexpr int MAX_THREADS = 16;			// 최대 스레드 수
 
 const int NUM_TEST = 10000000;
 
+constexpr int MAX_SPIN = 1 << 16;
+constexpr int MIN_SPIN = 1 << 8;
+
 struct Node 
 {
 	int key;
@@ -97,8 +100,6 @@ constexpr int EMPTY = -1;	// 비어있음 (collision)
 
 struct LockFreeEliminationStack
 {
-	constexpr static int MAX_SPIN = 1 << 16;
-
 	Node* volatile top;
 	std::vector<ThreadInfoPtr> location;
 	std::vector<Integer> collision;
@@ -115,13 +116,15 @@ struct LockFreeEliminationStack
 
 	int GetPosition()
 	{
-		//return (rand() % range.current_range);	// 균등 분포로 메인 논문의 방식
+		return (rand() % range.current_range);	// 중앙 집중 방식 (결론적으로)
+		/*	복잡만 하고 위와 비슷한 일을 하는 코드이다
 		int mid = range.max_range / 2;
 		int half_range = range.current_range / 2;
 		if (half_range == 0) return mid;							// 범위가 너무 작음 (zero division 방지)
 		return (rand() % range.current_range) + (mid - half_range);	// 중앙 집중 분포로 서브 논문의 방식
 																	// woudenberg 논문의 11page에서 중앙 집중 분포를 사용한 성능 비교 참고
 																	// 메인 논문에도 있었다 (배열의 중앙 집중 방식이지만 Range를 늘려감)
+		*/
 	}
 
 	void Clear()
