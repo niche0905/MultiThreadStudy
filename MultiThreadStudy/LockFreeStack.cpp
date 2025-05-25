@@ -25,7 +25,9 @@ struct Node
 	Node(int k = 0) : key(k), next(nullptr) {}
 };
 
-class LockFreeStack {
+// 기본 LockFree Stack (Treiber 방식)
+class LockFreeStack 
+{
 	Node* volatile top;
 	bool CAS(Node* old_p, Node* new_p)
 	{
@@ -66,6 +68,102 @@ public:
 				// delete last;
 				return value;
 			}
+		}
+	}
+	void Print20()
+	{
+		Node* p = top;
+		for (int i = 0; i < 20; ++i) {
+			if (nullptr == p) break;
+			std::cout << p->key << ", ";
+			p = p->next;
+		}
+		std::cout << std::endl;
+	}
+};
+
+// 단순 BackOff (_mm_pause 사용)
+class BackOff
+{
+	int min_delay, max_delay;
+	int now_delay;
+
+public:
+	BackOff(int min, int max)
+		: min_delay{ min }, max_delay{ max }, now_delay{ min_delay }
+	{}
+
+	void Delay()
+	{
+		int half_delay = (now_delay / 2);
+		if (half_delay == 0) half_delay = 1;
+		int delay = (rand() % half_delay) + half_delay;
+
+		for (int i = 0; i < delay; ++i) {
+			_mm_pause();
+		}
+	}
+
+	void Increment()
+	{
+		now_delay = std::min(now_delay * 2, max_delay);
+	}
+
+	void Decrement()
+	{
+		now_delay = std::max(now_delay / 2, min_delay);
+	}
+};
+thread_local BackOff back_off{ MIN_SPIN, MAX_SPIN };
+class LockFreeBackOffStack
+{
+	Node* volatile top;
+	bool CAS(Node* old_p, Node* new_p)
+	{
+		return std::atomic_compare_exchange_strong(
+			reinterpret_cast<volatile std::atomic_llong*>(&top),
+			reinterpret_cast<long long*>(&old_p),
+			reinterpret_cast<long long>(new_p));
+	}
+public:
+	LockFreeBackOffStack()
+	{
+		top = nullptr;
+	}
+	void Clear()
+	{
+		while (EMPTY != Pop());
+	}
+	void Push(int x)
+	{
+		Node* node = new Node{ x };
+		while (true) {
+			Node* last = top;
+			node->next = last;
+			if (true == CAS(last, node)) {
+				back_off.Decrement();
+				return;
+			}
+			back_off.Delay();
+			back_off.Increment();
+		}
+	}
+	int Pop()
+	{
+		while (true) {
+			Node* volatile last = top;
+			if (nullptr == last)
+				return EMPTY;
+			Node* volatile next = last->next;
+			if (last != top) continue;
+			int value = last->key;
+			if (true == CAS(last, next)) {
+				back_off.Decrement();
+				// delete last;
+				return value;
+			}
+			back_off.Delay();
+			back_off.Increment();
 		}
 	}
 	void Print20()
@@ -336,7 +434,7 @@ private:
 
 };
 
-LockFreeStack stack;
+LockFreeBackOffStack stack;
 
 void benchmark(const int th_id)
 {
