@@ -253,6 +253,156 @@ thread_local int thread_id;	// 스레드 ID
 thread_local RangePolicy range(2 * now_thread_num);
 std::atomic_int g_el_success = 0;
 
+// Improve 소거 기법 (최근 논문 2021)
+class ImprovedLockFreeExchanger
+{
+	static constexpr int POP_EMPTY = -1;
+	static constexpr int POP = -2;
+
+	enum Status : int
+	{
+		EMPTY = 0,			// 비어있음
+		WAITINGPOPPER = 1,	// POP이 기다리는중
+		WAITINGPUSHER = 2,	// PUSH가 기다리는중
+		BUSY = 3			// 교환 완료 (처리중?)
+	};
+
+	struct Slot
+	{
+		volatile long long slot = 0;
+		
+		Slot()
+			: slot{ 0 }
+		{
+
+		}
+		Slot(int value, int state)
+		{
+			slot = (static_cast<long long>(value) << 32) | (state);
+		}
+
+		void set_slot()
+		{
+			slot = 0;
+		}
+
+		int get_slot(int& status)
+		{
+			long long now_value = slot;
+			status = static_cast<int>(now_value & 0xFFFFFFFF);
+			return static_cast<int>((now_value >> 32) & 0xFFFFFFFF);
+		}
+
+		int get_state()
+		{
+			long long now_value = slot;
+			return static_cast<int>(now_value & 0xFFFFFFFF);
+		}
+
+		bool CAS(int old_val, int new_val, int old_st, int new_st)
+		{
+			long long old_value = (static_cast<long long>(old_val) << 32) | (old_st);
+			long long new_value = (static_cast<long long>(new_val) << 32) | (new_st);
+			return std::atomic_compare_exchange_strong(
+				reinterpret_cast<volatile std::atomic_llong*>(&slot),
+				&old_value, new_value
+			);
+		}
+
+		bool CAS(long long old_slot, long long new_slot)
+		{
+			return std::atomic_compare_exchange_strong(
+				reinterpret_cast<volatile std::atomic_llong*>(&slot),
+				&old_slot, new_slot
+			);
+		}
+
+		bool CAS(Slot old_slot, Slot new_slot)
+		{
+
+			long long old_value = old_slot.slot;
+			long long new_value = new_slot.slot;
+			return std::atomic_compare_exchange_strong(
+				reinterpret_cast<volatile std::atomic_llong*>(&slot),
+				&old_value, new_value
+			);
+		}
+	};
+
+	Slot slot;
+
+public:
+	ImprovedLockFreeExchanger() : slot() {}
+
+	int exchange(int myItem, std::chrono::nanoseconds timeout)
+	{
+		using Clock = std::chrono::steady_clock;
+		const auto deadline = Clock::now() + timeout;
+		const int status = (myItem == POP) ? WAITINGPOPPER : WAITINGPUSHER;
+		int temp;
+
+		while (true) {
+			Slot old_slot = slot;
+
+			if (Clock::now() >= deadline)
+				throw std::runtime_error("Timeout");
+
+			int now_state = old_slot.get_state();
+			switch (now_state)
+			{
+			case EMPTY:
+			{
+				Slot new_slot{ myItem, status };
+
+				if (slot.CAS(old_slot, new_slot)) {
+					while (Clock::now() < deadline) {
+						old_slot = slot;
+						if (old_slot.get_state() == BUSY) {
+							slot.set_slot();
+
+							return old_slot.get_slot(temp);
+						}
+					}
+					if (slot.CAS(new_slot, Slot{}))
+						throw std::runtime_error("Timeout");
+					else {
+						old_slot = slot;
+						slot.set_slot();
+
+						return old_slot.get_slot(temp);
+					}
+				}
+			}
+			break;
+			case WAITINGPOPPER:
+			{
+				if (status != WAITINGPOPPER) {
+					Slot new_slot{ myItem, BUSY };
+					if (slot.CAS(old_slot, new_slot))
+						return old_slot.get_slot(temp);
+				}
+			}
+			break;
+			case WAITINGPUSHER:
+			{
+				if (status != WAITINGPUSHER) {
+					Slot new_slot{ myItem, BUSY };
+					if (slot.CAS(old_slot, new_slot))
+						return old_slot.get_slot(temp);
+				}
+			}
+			break;
+			case BUSY:
+			{
+				// nothing
+			}
+			break;
+			}
+		}
+	}
+
+};
+
 
 struct LockFreeEliminationStack
 {
