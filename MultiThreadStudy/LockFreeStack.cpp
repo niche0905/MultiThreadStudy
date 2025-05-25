@@ -258,6 +258,7 @@ class ImprovedLockFreeExchanger
 {
 	static constexpr int POP_EMPTY = -1;
 	static constexpr int POP = -2;
+	static constexpr int TIMEOUT = -3;
 
 	enum Status : int
 	{
@@ -345,7 +346,7 @@ public:
 			Slot old_slot = slot;
 
 			if (Clock::now() >= deadline)
-				throw std::runtime_error("Timeout");
+				return TIMEOUT;
 
 			int now_state = old_slot.get_state();
 			switch (now_state)
@@ -364,7 +365,7 @@ public:
 						}
 					}
 					if (slot.CAS(new_slot, Slot{}))
-						throw std::runtime_error("Timeout");
+						return TIMEOUT;
 					else {
 						old_slot = slot;
 						slot.set_slot();
