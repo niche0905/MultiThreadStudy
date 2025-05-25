@@ -15,12 +15,69 @@ const int NUM_TEST = 10000000;
 constexpr int MAX_SPIN = 1 << 16;
 constexpr int MIN_SPIN = 1 << 8;
 
+constexpr int EMPTY = -1;	// 비어있음 (스택, collision)
+
 struct Node 
 {
 	int key;
 	Node* volatile next;
 
 	Node(int k = 0) : key(k), next(nullptr) {}
+};
+
+class LockFreeStack {
+	Node* volatile top;
+	bool CAS(Node* old_p, Node* new_p)
+	{
+		return std::atomic_compare_exchange_strong(
+			reinterpret_cast<volatile std::atomic_llong*>(&top),
+			reinterpret_cast<long long*>(&old_p),
+			reinterpret_cast<long long>(new_p));
+	}
+public:
+	LockFreeStack()
+	{
+		top = nullptr;
+	}
+	void Clear()
+	{
+		while (EMPTY != Pop());
+	}
+	void Push(int x)
+	{
+		Node* node = new Node{ x };
+		while (true) {
+			Node* last = top;
+			node->next = last;
+			if (true == CAS(last, node))
+				return;
+		}
+	}
+	int Pop()
+	{
+		while (true) {
+			Node* volatile last = top;
+			if (nullptr == last)
+				return EMPTY;
+			Node* volatile next = last->next;
+			if (last != top) continue;
+			int value = last->key;
+			if (true == CAS(last, next)) {
+				// delete last;
+				return value;
+			}
+		}
+	}
+	void Print20()
+	{
+		Node* p = top;
+		for (int i = 0; i < 20; ++i) {
+			if (nullptr == p) break;
+			std::cout << p->key << ", ";
+			p = p->next;
+		}
+		std::cout << std::endl;
+	}
 };
 
 struct ThreadInfo
@@ -102,7 +159,6 @@ thread_local int thread_id;	// 스레드 ID
 thread_local RangePolicy range(2 * now_thread_num);
 std::atomic_int g_el_success = 0;
 
-constexpr int EMPTY = -1;	// 비어있음 (collision)
 
 struct LockFreeEliminationStack
 {
@@ -201,6 +257,7 @@ struct LockFreeEliminationStack
 	
 	void Print20()
 	{
+		std::cout << "Num Eliminations = " << g_el_success << ",   ";
 		Node* p = top;
 		for (int i = 0; i < 20; ++i) {
 			if (p == nullptr) break;
@@ -279,7 +336,7 @@ private:
 
 };
 
-LockFreeEliminationStack stack;
+LockFreeStack stack;
 
 void benchmark(const int th_id)
 {
@@ -365,7 +422,7 @@ void benchmark_test(const int th_id, const int num_threads, HISTORY& h)
 		else {
 			volatile int curr_size = stack_size--;
 			int res = stack.Pop();
-			if (res == -2) {
+			if (res == EMPTY) {
 				stack_size++;
 				if ((curr_size > num_threads * 2) && (stack_size > num_threads)) {
 					std::cout << "ERROR Non_Empty Stack Returned NULL\n";
@@ -398,7 +455,6 @@ int main()
 		auto exec_t = end_t - start_t;
 		size_t ms = duration_cast<milliseconds>(exec_t).count();
 		std::cout << n << " Threads,  " << ms << "ms. ----";
-		std::cout << "Num Eliminations = " << g_el_success << ",   ";
 		stack.Print20();
 		check_history(history);
 	}
