@@ -164,6 +164,7 @@ struct LockFreeEliminationStack
 				return;	// 소거 성공
 			}
 			else {
+				// TODO : Delay
 				range.shrink();	// 범위 축소
 			}
 		}
@@ -214,67 +215,36 @@ private:
 	bool TryEliminate(ThreadInfo* info, ThreadInfo*& matched_info)
 	{
 		int pos = GetPosition();
-		int expected = EMPTY;	// 처음은 비어 있을 것이라 기대
+		int him = collision[pos].val;
+		while (false == collision[pos].CAS(him, thread_id))	// 1차 충돌 실패
+			him = collision[pos].val;
 
-		int spin_cnt = 0;
-		if (collision[pos].CAS(expected, thread_id)) {				// 기다리기
-			while (spin_cnt < range.current_spin) {
-				_mm_pause();
-				// check elimination (성공이면 return)
-				if (location[thread_id].ptr->id != thread_id) {
-					matched_info = location[thread_id].ptr;			// 스레드 정보 가져오기
-					if (matched_info != nullptr && matched_info->op != info->op) {
-						return true;								// 소거 성공
-					}
-					break;
-				}
-				++spin_cnt;
-			}
+		if (him == EMPTY)
+			return false;
 
-			if (true == location[thread_id].CAS(info, nullptr)) {	// 소거 타임아웃 실패 (아무도 찾아오지 않음)
-				collision[pos].CAS(thread_id, EMPTY);				// 충돌 정보 초기화
-				return false;
-			}
-			else {													// 소거 됨 (그새 누군가 가져감)
-				matched_info = location[thread_id].ptr;				// 스레드 정보 가져오기
-				location[thread_id].CAS(matched_info, nullptr);
-				if (matched_info != nullptr && matched_info->op != info->op) {
-					return true;									// 소거 성공
+		ThreadInfo* q = location[him].ptr;
+		if (nullptr == q or thread_id == him or q->op == info->op)
+			return false;
+
+		if (location[thread_id].CAS(info, nullptr)) {
+			if ('p' == info->op) {
+				if (true == location[him].CAS(q, info)) {
+					return true;
 				}
-				collision[pos].CAS(thread_id, EMPTY);				// 충돌 정보 초기화
-				return false;
+			}
+			else {
+				if (true == location[him].CAS(q, nullptr)) {
+					matched_info = q;
+					return true;
+				}
 			}
 		}
 		else {
-			int other_id = collision[pos].val;						// 타 스레드 번호
-			if (other_id == EMPTY) return false;					// 다른 스레드가 없으면 실패
-			ThreadInfo* other_info = location[other_id].ptr;		// 스레드 정보 가져오기
-			if (other_info != nullptr && other_info->op != info->op) {	// 다른 스레드가 소거를 시도했음
-				if (true == collision[pos].CAS(other_id, thread_id)) {
-					if (true == location[other_id].CAS(other_info, info)) {	// 소거 성공
-						matched_info = other_info;					// 스레드 정보 가져오기
-						if (matched_info != nullptr && matched_info->op != info->op) {
-							return true;									// 소거 성공
-						}
-						return false;
-					}
-				}
-			}
-
-			if (true == location[thread_id].CAS(info, nullptr)) {	// 소거 타임아웃 실패 (아무도 찾아오지 않음)
-				collision[pos].CAS(thread_id, EMPTY);				// 충돌 정보 초기화
-				return false;
-			}
-			else {													// 소거 됨 (그새 누군가 가져감)
-				matched_info = location[thread_id].ptr;				// 스레드 정보 가져오기
-				location[thread_id].CAS(matched_info, nullptr);
-				if (matched_info != nullptr && matched_info->op != info->op) {
-					return true;									// 소거 성공
-				}
-				collision[pos].CAS(thread_id, EMPTY);				// 충돌 정보 초기화
-				return false;
-			}
+			matched_info = location[thread_id].ptr;
+			location[thread_id].ptr = nullptr;
+			return true;
 		}
+		return false;
 	}
 
 };
