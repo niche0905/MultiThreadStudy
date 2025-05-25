@@ -429,12 +429,11 @@ private:
 };
 
 // Improve 소거 기법 (최근 논문 2021)
+static constexpr int POP_EMPTY = -1;
+static constexpr int POP = -2;
+static constexpr int TIMEOUT = -3;
 class ImprovedLockFreeExchanger
 {
-	static constexpr int POP_EMPTY = -1;
-	static constexpr int POP = -2;
-	static constexpr int TIMEOUT = -3;
-
 	enum Status : int
 	{
 		EMPTY = 0,			// 비어있음
@@ -578,7 +577,32 @@ public:
 	}
 
 };
+class EliminationArray
+{
+	// 논문에선 1ms를 기다린 것으로 추정됨 (너무 길지 않나?)
+	static constexpr std::chrono::nanoseconds duration{ 10 };
 
+	std::vector<ImprovedLockFreeExchanger> exchager;
+
+public:
+	EliminationArray(int capacity)
+		: exchager(capacity)
+	{
+		// Random...?
+	}
+
+	void SetCapacity(int capacity)
+		// thread 활용 갯수가 달라짐에 따라 필요할 것으로 사료
+	{
+		exchager.resize(capacity);
+	}
+	
+	int visit(int value, int range)
+	{
+		int slot = rand() % range;	// range는 capacity 이하여야 할 것
+		return (exchager[slot].exchange(value, duration));
+	}
+};
 
 
 LockFreeBackOffStack stack;
