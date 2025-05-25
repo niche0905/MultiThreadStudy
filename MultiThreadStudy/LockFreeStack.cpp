@@ -432,6 +432,7 @@ private:
 static constexpr int POP_EMPTY = -1;
 static constexpr int POP = -2;
 static constexpr int TIMEOUT = -3;
+static constexpr int POP_FALSE = -4;
 class ImprovedLockFreeExchanger
 {
 	enum Status : int
@@ -603,7 +604,132 @@ public:
 		return (exchager[slot].exchange(value, duration));
 	}
 };
+class ImprovedEliminationBackoffStack
+{
+	int capacity;	// 현재 EliminationArray의 capacity
 
+	Node* volatile top;
+	EliminationArray elimination_array;
+
+	struct RangePolicy
+	{
+		int range;
+		int success_count;
+		int timeout_count;
+		int max_range;
+
+		RangePolicy(int max)
+			: max_range(max), range(max), success_count(0), timeout_count(0) {}
+
+		void SetCapacity(int capacity)
+			// thread 활용 갯수가 달라짐에 따라 필요할 것으로 사료
+		{
+			max_range = capacity;
+			range = capacity;
+			success_count = 0;
+			timeout_count = 0;
+		}
+
+		void recordSuccess() { /* ... */ }
+		void recordTimeout() { /* ... */ }
+	};
+
+	static thread_local RangePolicy range_policy;
+
+
+	bool CAS(Node* old_p, Node* new_p)
+	{
+		return std::atomic_compare_exchange_strong(
+			reinterpret_cast<volatile std::atomic_llong*>(&top),
+			reinterpret_cast<long long*>(&old_p),
+			reinterpret_cast<long long>(new_p));
+	}
+public:
+	ImprovedEliminationBackoffStack()
+		: capacity{ now_thread_num / 2 }
+		, elimination_array(capacity)
+	{
+		top = nullptr;
+	}
+	void SetCapacity()
+	{
+		capacity = now_thread_num / 2;
+		elimination_array.SetCapacity(capacity);
+		// .. RangePolicy도 해야함 그냥 위(외부)에다 하는게;
+	}
+	void Clear()
+	{
+		while (EMPTY != Pop());
+	}
+	void Push(int x)
+	{
+		Node* node = new Node{ x };
+
+		while (true) {
+			if (TryPush(node)) {
+				return;
+			}
+			else {
+				if (TIMEOUT != elimination_array.visit(x, range_policy.range)) {
+					range_policy.recordTimeout();
+					return;
+				}
+				else {
+					range_policy.recordSuccess();
+				}
+			}
+
+		}
+	}
+	int Pop()
+	{
+		while (true) {
+			int value = TryPop();
+			if (POP_FALSE != value)	// POP_EMPTY 혹은, 제대로 된 값이면 return
+				return value;
+			else {
+				int elimination_ret = elimination_array.visit(POP, range_policy.range);
+				if (TIMEOUT != elimination_ret) {
+					range_policy.recordTimeout();
+					return elimination_ret;
+				}
+				else {
+					range_policy.recordSuccess();
+				}
+			}
+		}
+	}
+	bool TryPush(Node* new_node)
+	{
+		Node* old_top = top;
+		new_node->next = old_top;
+		return CAS(old_top, new_node);
+	}
+	int TryPop()
+	{
+		Node* old_top = top;
+		if (nullptr == old_top)
+			return POP_EMPTY;
+
+		int value = old_top->key;
+		Node* new_top = old_top->next;
+		if (true == CAS(old_top, new_top)) {
+			return value;
+		}
+		return POP_FALSE;
+	}
+	void Print20()
+	{
+		Node* p = top;
+		for (int i = 0; i < 20; ++i) {
+			if (nullptr == p) break;
+			std::cout << p->key << ", ";
+			p = p->next;
+		}
+		std::cout << std::endl;
+	}
+
+};
 
 LockFreeBackOffStack stack;
 
@@ -709,6 +835,7 @@ int main()
 
 	for (int n = 1; n <= MAX_THREADS; n = n * 2) {
 		stack.Clear();
+		now_thread_num = n;
 		std::vector<std::thread> tv;
 		std::vector<HISTORY> history;
 		history.resize(n);
