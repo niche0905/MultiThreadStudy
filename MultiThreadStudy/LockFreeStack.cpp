@@ -178,6 +178,7 @@ public:
 	}
 };
 
+// LF 소거 기법 (기존의 코드) <- 안돌아감
 struct ThreadInfo
 {
 	int id;
@@ -186,7 +187,6 @@ struct ThreadInfo
 
 	ThreadInfo(int th_id, char now_op, Node* ptr) : id(th_id), op(now_op), node(ptr) {}
 };
-
 struct alignas(CACHE_LINE_SIZE) ThreadInfoPtr 
 {
 	ThreadInfo* volatile ptr;
@@ -202,7 +202,6 @@ struct alignas(CACHE_LINE_SIZE) ThreadInfoPtr
 			reinterpret_cast<long long>(new_ptr));
 	}
 };
-
 struct alignas(CACHE_LINE_SIZE) Integer
 {
 	int volatile val;
@@ -218,9 +217,7 @@ struct alignas(CACHE_LINE_SIZE) Integer
 			new_val);
 	}
 };
-
 volatile int now_thread_num;
-
 struct RangePolicy
 {
 	int current_range;
@@ -252,7 +249,6 @@ struct RangePolicy
 		current_spin = std::min(current_spin * 2, MAX_SPIN);
 	}
 };
-
 thread_local int thread_id;	// 스레드 ID
 thread_local RangePolicy range(2 * now_thread_num);
 std::atomic_int g_el_success = 0;
@@ -564,6 +560,7 @@ int main()
 		now_thread_num = n;
 		std::vector<std::thread> tv;
 		tv.reserve(n);
+		g_el_success = 0;
 		auto start_t = high_resolution_clock::now();
 		for (int i = 0; i < n; ++i) {
 			tv.emplace_back(benchmark, i);
