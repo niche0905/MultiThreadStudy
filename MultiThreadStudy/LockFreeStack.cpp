@@ -281,7 +281,7 @@ struct RangePolicy
 	void shrink()
 	{
 		++timeout_count;
-		if (timeout_count > 5) {
+		if (timeout_count > 10) {
 			timeout_count = 0;	// reset
 			range = std::max(range - 1, 1);	// 범위 축소
 		}
@@ -619,7 +619,7 @@ public:
 class EliminationArray
 {
 	// 논문에선 1ms를 기다린 것으로 추정됨 (너무 길지 않나?)
-	static constexpr std::chrono::nanoseconds duration{ 10 };
+	static constexpr std::chrono::nanoseconds duration{ 1000 };	// 1ms 저번껀 10ns
 
 	std::vector<ImprovedLockFreeExchanger> exchager;
 
