@@ -17,6 +17,11 @@ constexpr int MIN_SPIN = 1 << 8;
 
 constexpr int EMPTY = -1;	// 비어있음 (스택, collision)
 
+constexpr int POP_EMPTY = -1;
+constexpr int POP = -2;
+constexpr int TIMEOUT = -3;
+constexpr int POP_FALSE = -4;
+
 struct Node 
 {
 	int key;
@@ -220,6 +225,9 @@ struct alignas(CACHE_LINE_SIZE) Integer
 volatile int now_thread_num;
 struct RangePolicy
 {
+	static constexpr int R_MAX_SPIN = 1 << 8;
+	static constexpr int R_MIN_SPIN = 1 << 4;
+
 	int range;
 	int min_range;
 	int max_range;
@@ -239,14 +247,14 @@ struct RangePolicy
 	void expand()
 	{
 		range = std::min(range * 2, max_range);
-		current_spin = std::max(current_spin / 2, MIN_SPIN);
+		current_spin = std::max(current_spin / 2, R_MIN_SPIN);
 	}
 
 	// 소거에 실패한 상황
 	void shrink()
 	{
 		range = std::max(range / 2, min_range);
-		current_spin = std::min(current_spin * 2, MAX_SPIN);
+		current_spin = std::min(current_spin * 2, R_MAX_SPIN);
 	}
 };
 thread_local int thread_id;	// 스레드 ID
@@ -438,12 +446,276 @@ struct LockFreeEliminationStack
 		std::cout << std::endl;
 	}
 };
+struct LockFreeExchager
+{
+	enum Status : int
+	{
+		EMPTY = 0,			// 비어있음
+		WAIT = 1,			// 기다리는중
+		BUSY = 2			// 교환 완료 (처리중?)
+	};
+	struct Slot
+	{
+		volatile long long slot = 0;
+
+		Slot()
+			: slot{ 0 }
+		{
+
+		}
+		Slot(int value, int state)
+		{
+			slot = (static_cast<long long>(value) << 32) | (state);
+		}
+
+		void set_slot()
+		{
+			slot = 0;
+		}
+
+		int get_slot(int& status)
+		{
+			long long now_value = slot;
+			status = static_cast<int>(now_value & 0xFFFFFFFF);
+			return static_cast<int>((now_value >> 32) & 0xFFFFFFFF);
+		}
+
+		int get_state()
+		{
+			long long now_value = slot;
+			return static_cast<int>(now_value & 0xFFFFFFFF);
+		}
+
+		bool CAS(int old_val, int new_val, int old_st, int new_st)
+		{
+			long long old_value = (static_cast<long long>(old_val) << 32) | (old_st);
+			long long new_value = (static_cast<long long>(new_val) << 32) | (new_st);
+			return std::atomic_compare_exchange_strong(
+				reinterpret_cast<volatile std::atomic_llong*>(&slot),
+				&old_value, new_value
+			);
+		}
+
+		bool CAS(long long old_slot, long long new_slot)
+		{
+			return std::atomic_compare_exchange_strong(
+				reinterpret_cast<volatile std::atomic_llong*>(&slot),
+				&old_slot, new_slot
+			);
+		}
+
+		bool CAS(Slot old_slot, Slot new_slot)
+		{
+
+			long long old_value = old_slot.slot;
+			long long new_value = new_slot.slot;
+			return std::atomic_compare_exchange_strong(
+				reinterpret_cast<volatile std::atomic_llong*>(&slot),
+				&old_value, new_value
+			);
+		}
+	};
+
+	Slot slot;
+
+public:
+	LockFreeExchager() : slot() {}
+
+	int exchange(int myItem, const int spin)
+	{
+		const int status = WAIT;
+		int temp;
+
+		int spin_count = 0;
+		while (true) {
+			Slot old_slot = slot;
+
+			if (spin_count >= spin)
+				return TIMEOUT;
+
+			int now_state = old_slot.get_state();
+			switch (now_state)
+			{
+			case EMPTY:
+			{
+				Slot new_slot{ myItem, status };
+
+				if (slot.CAS(old_slot, new_slot)) {
+					while (spin_count < spin) {
+						old_slot = slot;
+						if (old_slot.get_state() == BUSY) {
+							slot.set_slot();
+
+							return old_slot.get_slot(temp);
+						}
+						++spin_count;	// spin 증가
+					}
+					if (slot.CAS(new_slot, Slot{}))
+						return TIMEOUT;
+					else {
+						old_slot = slot;
+						slot.set_slot();
+
+						return old_slot.get_slot(temp);
+					}
+				}
+			}
+			break;
+			case WAIT:
+			{
+				Slot new_slot{ myItem, BUSY };
+				if (slot.CAS(old_slot, new_slot))
+					return old_slot.get_slot(temp);
+			}
+			break;
+			case BUSY:
+			{
+				// nothing
+			}
+			break;
+			}
+
+			++spin_count;	// spin 증가
+		}
+	}
+};
+struct EliminationArray
+{
+	std::vector<LockFreeExchager> exchager;
+
+public:
+	EliminationArray(int capacity)
+		: exchager(capacity)
+	{
+	}
+
+	void SetCapacity(int capacity)
+		// thread 활용 갯수가 달라짐에 따라 필요할 것으로 사료
+	{
+		exchager.resize(capacity);
+	}
+
+	int visit(int value, int range)
+	{
+		int slot = rand() % range;	// range는 capacity 이하여야 할 것
+		return (exchager[slot].exchange(value, origin_range.current_spin));
+	}
+
+};
+struct CorrectEliminationStack
+{
+
+	int capacity;
+
+	Node* volatile top;
+	EliminationArray elimination_array;
+
+	CorrectEliminationStack(int th_num = MAX_THREADS) : capacity{ th_num }, top(nullptr), elimination_array(th_num) {}
+
+	void SetCapacity()
+	{
+		capacity = now_thread_num / 2;
+		elimination_array.SetCapacity(capacity);
+	}
+
+	void SetRangePolicy()
+	{
+		origin_range.init(capacity);
+	}
+
+	bool CAS(Node* old_val, Node* new_val)
+	{
+		return std::atomic_compare_exchange_strong(
+			reinterpret_cast<volatile std::atomic_llong*>(&top),
+			reinterpret_cast<long long*>(&old_val),
+			reinterpret_cast<long long>(new_val));
+	}
+
+	void Clear()
+	{
+		g_el_success = 0;
+		while (top != nullptr) {
+			Node* temp = top;
+			top = top->next;
+			delete temp;
+		}
+	}
+
+	void Push(int num)
+	{
+		Node* node = new Node{ num };
+
+		while (true) {
+			if (TryPush(node)) {
+				return;
+			}
+			else {
+				if (POP == elimination_array.visit(num, origin_range.range)) {
+					++g_el_success;
+					origin_range.expand();
+					return;
+				}
+				else {
+					origin_range.shrink();
+				}
+			}
+
+		}
+	}
+
+	int Pop()
+	{
+		while (true) {
+			int value = TryPop();
+			if (POP_FALSE != value)	// POP_EMPTY 혹은, 제대로 된 값이면 return
+				return value;
+			else {
+				int elimination_ret = elimination_array.visit(POP, origin_range.range);
+				if (TIMEOUT != elimination_ret and POP != elimination_ret) {
+					origin_range.expand();
+					return elimination_ret;
+				}
+				else {
+					origin_range.shrink();
+				}
+			}
+		}
+	}
+
+	bool TryPush(Node* new_node)
+	{
+		Node* old_top = top;
+		new_node->next = old_top;
+		return CAS(old_top, new_node);
+	}
+	int TryPop()
+	{
+		Node* old_top = top;
+		if (nullptr == old_top)
+			return POP_EMPTY;
+
+		int value = old_top->key;
+		Node* new_top = old_top->next;
+		if (true == CAS(old_top, new_top)) {
+			return value;
+		}
+		return POP_FALSE;
+	}
+
+	void Print20()
+	{
+		std::cout << "Num Eliminations = " << g_el_success << ",   ";
+		Node* p = top;
+		for (int i = 0; i < 20; ++i) {
+			if (p == nullptr) break;
+			std::cout << p->key << " ";
+			p = p->next;
+		}
+		std::cout << std::endl;
+	}
+};
 
 // Improve 소거 기법 (최근 논문 2021)
-static constexpr int POP_EMPTY = -1;
-static constexpr int POP = -2;
-static constexpr int TIMEOUT = -3;
-static constexpr int POP_FALSE = -4;
 class ImprovedLockFreeExchanger
 {
 	enum Status : int
@@ -589,7 +861,7 @@ public:
 	}
 
 };
-class EliminationArray
+class ImprovedEliminationArray
 {
 	// 논문에선 1ms를 기다린 것으로 추정됨 (너무 길지 않나?)
 	static constexpr std::chrono::nanoseconds duration{ 1000 };	// 1ms 저번껀 10ns
@@ -597,7 +869,7 @@ class EliminationArray
 	std::vector<ImprovedLockFreeExchanger> exchager;
 
 public:
-	EliminationArray(int capacity)
+	ImprovedEliminationArray(int capacity)
 		: exchager(capacity)
 	{
 		// Random...?
@@ -657,7 +929,7 @@ class ImprovedEliminationBackoffStack
 	int capacity;	// 현재 EliminationArray의 capacity
 
 	Node* volatile top;
-	EliminationArray elimination_array;
+	ImprovedEliminationArray elimination_array;
 
 	bool CAS(Node* old_p, Node* new_p)
 	{
@@ -761,7 +1033,7 @@ public:
 	}
 };
 
-LockFreeEliminationStack stack;
+CorrectEliminationStack stack;
 
 void benchmark(const int th_id)
 {
