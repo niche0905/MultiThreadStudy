@@ -290,6 +290,7 @@ struct LockFreeEliminationStack
 
 	void Clear()
 	{
+		g_el_success = 0;
 		while (top != nullptr) {
 			Node* temp = top;
 			top = top->next;
@@ -427,6 +428,7 @@ struct LockFreeEliminationStack
 
 	void Print20()
 	{
+		std::cout << "Num Eliminations = " << g_el_success << ",   ";
 		Node* p = top;
 		for (int i = 0; i < 20; ++i) {
 			if (p == nullptr) break;
@@ -685,6 +687,7 @@ public:
 	}
 	void Clear()
 	{
+		g_el_success = 0;
 		while (EMPTY != Pop());
 	}
 	void Push(int x)
@@ -868,7 +871,6 @@ int main()
 		std::vector<HISTORY> history;
 		history.resize(n);
 		stack_size = 0;
-		g_el_success = 0;
 		auto start_t = high_resolution_clock::now();
 		for (int i = 0; i < n; ++i) {
 			tv.emplace_back(benchmark_test, i, n, std::ref(history[i]));
@@ -891,7 +893,6 @@ int main()
 		stack.SetCapacity();
 		std::vector<std::thread> tv;
 		tv.reserve(n);
-		g_el_success = 0;
 		auto start_t = high_resolution_clock::now();
 		for (int i = 0; i < n; ++i) {
 			tv.emplace_back(benchmark, i);
