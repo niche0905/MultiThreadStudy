@@ -218,39 +218,77 @@ struct alignas(CACHE_LINE_SIZE) Integer
 	}
 };
 volatile int now_thread_num;
+//struct RangePolicy
+//{
+//	int current_range;
+//	int min_range;
+//	int max_range;
+//
+//	int current_spin;
+//
+//	RangePolicy(int max) : current_range(1), min_range(1), max_range(max), current_spin(MIN_SPIN) {}
+//
+//	void init(int max)
+//	{
+//		current_range = 1;
+//		max_range = max;
+//		current_spin = MIN_SPIN;
+//	}
+//
+//	// 소거에 성공한 상황
+//	void expand()
+//	{
+//		current_range = std::min(current_range * 2, max_range);
+//		current_spin = std::max(current_spin / 2, MIN_SPIN);
+//	}
+//
+//	// 소거에 실패한 상황
+//	void shrink()
+//	{
+//		current_range = std::max(current_range / 2, min_range);
+//		current_spin = std::min(current_spin * 2, MAX_SPIN);
+//	}
+//};
 struct RangePolicy
 {
-	int current_range;
-	int min_range;
+	int range;
+	int success_count;
+	int timeout_count;
 	int max_range;
 
-	int current_spin;
+	int current_spin = 0;
 
-	RangePolicy(int max) : current_range(1), min_range(1), max_range(max), current_spin(MIN_SPIN) {}
+	RangePolicy(int max)
+		: max_range(max), range(max), success_count(0), timeout_count(0) {}
 
-	void init(int max)
+	void init(int capacity)
+		// thread 활용 갯수가 달라짐에 따라 필요할 것으로 사료
 	{
-		current_range = 1;
-		max_range = max;
-		current_spin = MIN_SPIN;
+		max_range = capacity;
+		range = capacity;
+		success_count = 0;
+		timeout_count = 0;
 	}
 
-	// 소거에 성공한 상황
 	void expand()
-	{
-		current_range = std::min(current_range * 2, max_range);
-		current_spin = std::max(current_spin / 2, MIN_SPIN);
+	{ 
+		++success_count;
+		if (success_count > 5) {
+			success_count = 0;	// reset
+			range = std::min(range + 1, max_range);	// 범위 확장
+		}
 	}
-
-	// 소거에 실패한 상황
 	void shrink()
 	{
-		current_range = std::max(current_range / 2, min_range);
-		current_spin = std::min(current_spin * 2, MAX_SPIN);
+		++timeout_count;
+		if (timeout_count > 5) {
+			timeout_count = 0;	// reset
+			range = std::max(range - 1, 1);	// 범위 축소
+		}
 	}
 };
 thread_local int thread_id;	// 스레드 ID
-thread_local RangePolicy range(2 * now_thread_num);
+thread_local RangePolicy range(MAX_THREADS);
 std::atomic_int g_el_success = 0;
 struct LockFreeEliminationStack
 {
@@ -270,7 +308,7 @@ struct LockFreeEliminationStack
 
 	int GetPosition()
 	{
-		return (rand() % range.current_range);	// 중앙 집중 방식 (결론적으로)
+		return (rand() % range.range);	// 중앙 집중 방식 (결론적으로)
 		/*	복잡만 하고 위와 비슷한 일을 하는 코드이다
 		int mid = range.max_range / 2;
 		int half_range = range.current_range / 2;
@@ -611,32 +649,6 @@ class ImprovedEliminationBackoffStack
 	Node* volatile top;
 	EliminationArray elimination_array;
 
-	struct RangePolicy
-	{
-		int range;
-		int success_count;
-		int timeout_count;
-		int max_range;
-
-		RangePolicy(int max)
-			: max_range(max), range(max), success_count(0), timeout_count(0) {}
-
-		void SetCapacity(int capacity)
-			// thread 활용 갯수가 달라짐에 따라 필요할 것으로 사료
-		{
-			max_range = capacity;
-			range = capacity;
-			success_count = 0;
-			timeout_count = 0;
-		}
-
-		void recordSuccess() { /* ... */ }
-		void recordTimeout() { /* ... */ }
-	};
-
-	static thread_local RangePolicy range_policy;
-
-
 	bool CAS(Node* old_p, Node* new_p)
 	{
 		return std::atomic_compare_exchange_strong(
@@ -652,10 +664,16 @@ public:
 		top = nullptr;
 	}
 	void SetCapacity()
+		// Clear 뒤 Benchmark 시작 전에 부를 것
 	{
 		capacity = now_thread_num / 2;
 		elimination_array.SetCapacity(capacity);
 		// .. RangePolicy도 해야함 그냥 위(외부)에다 하는게;
+	}
+	void SetRangePolicy()
+		// 모든 스레드에서 시작 전에 부를 것
+	{
+		range.init(capacity);
 	}
 	void Clear()
 	{
@@ -670,12 +688,13 @@ public:
 				return;
 			}
 			else {
-				if (TIMEOUT != elimination_array.visit(x, range_policy.range)) {
-					range_policy.recordTimeout();
+				if (TIMEOUT != elimination_array.visit(x, range.range)) {
+					++g_el_success;
+					range.expand();
 					return;
 				}
 				else {
-					range_policy.recordSuccess();
+					range.shrink();
 				}
 			}
 
@@ -688,13 +707,13 @@ public:
 			if (POP_FALSE != value)	// POP_EMPTY 혹은, 제대로 된 값이면 return
 				return value;
 			else {
-				int elimination_ret = elimination_array.visit(POP, range_policy.range);
+				int elimination_ret = elimination_array.visit(POP, range.range);
 				if (TIMEOUT != elimination_ret) {
-					range_policy.recordTimeout();
+					range.expand();
 					return elimination_ret;
 				}
 				else {
-					range_policy.recordSuccess();
+					range.shrink();
 				}
 			}
 		}
@@ -720,6 +739,7 @@ public:
 	}
 	void Print20()
 	{
+		std::cout << "Num Eliminations = " << g_el_success << ",   ";
 		Node* p = top;
 		for (int i = 0; i < 20; ++i) {
 			if (nullptr == p) break;
@@ -731,13 +751,14 @@ public:
 
 };
 
-LockFreeBackOffStack stack;
+ImprovedEliminationBackoffStack stack;
 
 void benchmark(const int th_id)
 {
 	thread_id = th_id;
 
-	range.init(2 * now_thread_num);
+	//range.init(2 * now_thread_num);
+	stack.SetRangePolicy();
 
 	int key = 0;
 	int loop_count = NUM_TEST / now_thread_num;
@@ -805,7 +826,8 @@ void benchmark_test(const int th_id, const int num_threads, HISTORY& h)
 {
 	thread_id = th_id;
 
-	range.init(2 * num_threads);
+	//range.init(2 * num_threads);
+	stack.SetRangePolicy();
 
 	int loop_count = NUM_TEST / num_threads;
 	for (int i = 0; i < loop_count; i++) {
@@ -836,6 +858,7 @@ int main()
 	for (int n = 1; n <= MAX_THREADS; n = n * 2) {
 		stack.Clear();
 		now_thread_num = n;
+		stack.SetCapacity();
 		std::vector<std::thread> tv;
 		std::vector<HISTORY> history;
 		history.resize(n);
@@ -860,6 +883,7 @@ int main()
 	for (int n = 1; n <= MAX_THREADS; n = n * 2) {
 		stack.Clear();
 		now_thread_num = n;
+		stack.SetCapacity();
 		std::vector<std::thread> tv;
 		tv.reserve(n);
 		g_el_success = 0;
