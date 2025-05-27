@@ -290,5 +290,34 @@ int main()
   ssh 210.93.61.41 -p 24 -l seungho
 
 
+2025-05-27
+-------------
+1. 다음 미션 만능객체 최적화
+ - 만능 알고리즘이 사용되는 분야 : NUMA 알고리즘
+ - NUMA 알고리즘은 다른 CPU의 메모리를 Access하면 속도가 많이 느리다.
+ - 이를 극복하기 위해서 Original 자료구조가 있으면 각각의 CPU가 자기 메모리에 복사본을 만들어 놓고 그 복사본을 Access해서 다른 CPU 메모리 접근을 줄이는 방식으로 최적화한다,
+ - 복사본의 Lock Free 동기화가 너무 어렵기 때문에 만능객체에 LOG 개념을 차용해서 사용한다.
 
-  
+ - 최적화 아이디어
+  * 교재의 만능 객체는 log만 저장하는데 굳이 처음부터 다 저장할 필요가 있는가?
+    앞의 1000개를 1000가 적용된 자료구조로 바꾼다. => Apply 호출 회수가 확 줄어든다.
+    자료구조로 전환할 떄 모든 쓰레드의 MIN을 실제 자료구조로 바꾸면 Apply  호출 회수를 최소화 할 수 있다.
+ * Contains 호출은 LOG에 넣을 필요가 없다.
+
+ - 아래를 한번 구현해 보자.  
+“A Wait Free Universal Construct for Large Objects”, PPoPP '20: Proceedings of the 25th ACM SIGPLAN Symposium on Principles and Practice of Parallel Programming February 2020 
+
+2. 다음 미팅
+ - 6월 17일 화요일 오후 7시.
+
+3. 졸업작품 서버 프로그래밍 중점연구과제 예시
+ - RIO 또는 io_uring을 사용한 최적화
+ - 다른 언어로 구현. Haskel, Elixir, Golang, RUST
+ - Game World Seamless Zone Partitioning
+ - 서버에서 사용하는 자료구조의 Lock-Free 최적화 (예 : view_list)
+ - 고성능 길막기 구현.
+ - 서버에 물리엔진 결합 (PhysX 같은 물리엔진을 사용한 충돌처리,  길막기, 지형 폭파..... )
+ - 동접 5000
+
+
+
