@@ -22,6 +22,15 @@ constexpr int POP = -2;
 constexpr int TIMEOUT = -3;
 constexpr int POP_FALSE = -4;
 
+thread_local unsigned long long g_next = 1;
+
+int rand_mt()
+{
+	g_next = g_next * 1103515245 + 12345;
+	return((unsigned)(g_next / 65536) % 32768);
+}
+
+
 struct Node 
 {
 	int key;
@@ -108,7 +117,7 @@ public:
 	{
 		int half_delay = (now_delay / 2);
 		if (half_delay == 0) half_delay = 1;
-		int delay = (rand() % half_delay) + half_delay;
+		int delay = (rand_mt() % half_delay) + half_delay;
 
 		for (int i = 0; i < delay; ++i) {
 			_mm_pause();
@@ -306,7 +315,7 @@ struct LockFreeEliminationStack
 
 	int get_random_pos()
 	{
-		return (rand() % origin_range.range);
+		return (rand_mt() % origin_range.range);
 	}
 
 	void Clear()
@@ -610,7 +619,7 @@ public:
 
 	int visit(int value, int range)
 	{
-		int slot = rand() % range;	// range는 capacity 이하여야 할 것
+		int slot = rand_mt() % range;	// range는 capacity 이하여야 할 것
 		return (exchager[slot].exchange(value, origin_range.current_spin));
 	}
 
@@ -896,7 +905,7 @@ public:
 	
 	int visit(int value, int range)
 	{
-		int slot = rand() % range;	// range는 capacity 이하여야 할 것
+		int slot = rand_mt() % range;	// range는 capacity 이하여야 할 것
 		return (exchager[slot].exchange(value, duration));
 	}
 };
@@ -1058,7 +1067,7 @@ void benchmark(const int th_id)
 	int loop_count = NUM_TEST / now_thread_num;
 
 	for (auto i = 0; i < loop_count; ++i) {
-		if ((i < 32) || ((rand() % 2) == 0)) {
+		if ((i < 32) || ((rand_mt() % 2) == 0)) {
 			stack.Push(key++);
 		}
 		else {
@@ -1124,7 +1133,7 @@ void benchmark_test(const int th_id, const int num_threads, HISTORY& h)
 
 	int loop_count = NUM_TEST / num_threads;
 	for (int i = 0; i < loop_count; i++) {
-		if ((rand() % 2) || i < 128 / num_threads) {
+		if ((rand_mt() % 2) || i < 128 / num_threads) {
 			h.push_values.push_back(i);
 			stack_size++;
 			stack.Push(i);
