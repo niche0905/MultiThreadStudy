@@ -7,8 +7,10 @@
 #include <xmmintrin.h>	// _mm_pause() 사용을 위한 헤더 (sleep의 대신 사용)
 #include <unordered_set>
 
+#define TIME_CHECK
+
 constexpr int CACHE_LINE_SIZE = 64;		// 캐시라인 크기 (Cache Thrasing 방지)
-constexpr int MAX_THREADS = 64;			// 최대 스레드 수
+constexpr int MAX_THREADS = 16;			// 최대 스레드 수
 
 const int NUM_TEST = 10000000;
 
@@ -1048,6 +1050,65 @@ public:
 
 ImprovedEliminationBackoffStack stack;
 
+#ifdef TIME_CHECK
+struct alignas(CACHE_LINE_SIZE) TimeData
+{
+	std::vector<long long> times;
+};
+
+struct TimeChecker
+{
+	std::vector<TimeData> times_array;
+
+	TimeChecker()
+	{
+	}
+
+	void Clear()
+	{
+		times_array.clear();
+	}
+
+	void Setter()
+	{
+		int thread_num = now_thread_num;
+		times_array.resize(thread_num);
+		for (auto& times : times_array) {
+			times.times.reserve(NUM_TEST / thread_num);
+		}
+	}
+
+	long long GetMaxTime()
+	{
+		long long max_time = 0;
+		for (auto& times : times_array) {
+			if (times.times.empty()) continue;
+			auto max_iter = std::max_element(times.times.begin(), times.times.end());
+			if (*max_iter > max_time) {
+				max_time = *max_iter;
+			}
+		}
+		return max_time;
+	}
+
+	long long GetAverageTime()
+	{
+		long long total_time = 0;
+		int count = 0;
+		for (auto& times : times_array) {
+			for (auto time : times.times) {
+				total_time += time;
+				++count;
+			}
+		}
+		if (count == 0) return 0;
+		return total_time / count;
+	}
+};
+
+TimeChecker time_checker;
+#endif
+
 void benchmark(const int th_id)
 {
 	thread_id = th_id;
@@ -1058,12 +1119,21 @@ void benchmark(const int th_id)
 	int loop_count = NUM_TEST / now_thread_num;
 
 	for (auto i = 0; i < loop_count; ++i) {
+#ifdef TIME_CHECK
+		auto start_t = std::chrono::high_resolution_clock::now();
+#endif
 		if ((i < 32) || ((rand() % 2) == 0)) {
 			stack.Push(key++);
 		}
 		else {
 			stack.Pop();
 		}
+#ifdef TIME_CHECK
+		auto end_t = std::chrono::high_resolution_clock::now();
+		auto exec_t = end_t - start_t;
+		long long ns = std::chrono::duration_cast<std::chrono::nanoseconds>(exec_t).count();
+		time_checker.times_array[th_id].times.push_back(ns);
+#endif
 	}
 }
 
@@ -1148,6 +1218,7 @@ int main()
 {
 	using namespace std::chrono;
 
+	/*
 	for (int n = 1; n <= MAX_THREADS; n = n * 2) {
 		stack.Clear();
 		now_thread_num = n;
@@ -1169,13 +1240,17 @@ int main()
 		stack.Print20();
 		check_history(history);
 	}
-
+	*/
 
 
 	for (int n = 1; n <= MAX_THREADS; n = n * 2) {
 		stack.Clear();
 		now_thread_num = n;
 		stack.SetCapacity();
+#ifdef TIME_CHECK
+		time_checker.Clear();
+		time_checker.Setter();
+#endif
 		std::vector<std::thread> tv;
 		tv.reserve(n);
 		auto start_t = high_resolution_clock::now();
@@ -1189,5 +1264,10 @@ int main()
 		size_t ms = duration_cast<milliseconds>(exec_t).count();
 		std::cout << n << " Threads,  " << ms << "ms. ----";
 		stack.Print20();
+#ifdef TIME_CHECK
+		long long max_time = time_checker.GetMaxTime();
+		long long avg_time = time_checker.GetAverageTime();
+		std::cout << " Max Time = " << max_time << ",   Avg Time = " << avg_time << std::endl;
+#endif
 	}
 }
