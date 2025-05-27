@@ -534,16 +534,17 @@ struct LockFreeExchager
 public:
 	LockFreeExchager() : slot() {}
 
-	int exchange(int myItem, const int spin)
+	int exchange(int myItem, std::chrono::nanoseconds timeout)
 	{
+		using Clock = std::chrono::steady_clock;
+		const auto deadline = Clock::now() + timeout;
 		const int status = WAIT;
 		int temp;
 
-		int spin_count = 0;
 		while (true) {
 			Slot old_slot = slot;
 
-			if (spin_count >= spin)
+			if (Clock::now() >= deadline)
 				return TIMEOUT;
 
 			int now_state = old_slot.get_state();
@@ -554,14 +555,13 @@ public:
 				Slot new_slot{ myItem, status };
 
 				if (slot.CAS(old_slot, new_slot)) {
-					while (spin_count < spin) {
+					while (Clock::now() < deadline) {
 						old_slot = slot;
 						if (old_slot.get_state() == BUSY) {
 							slot.set_slot();
 
 							return old_slot.get_slot(temp);
 						}
-						++spin_count;	// spin 증가
 					}
 					if (slot.CAS(new_slot, Slot{}))
 						return TIMEOUT;
@@ -588,12 +588,13 @@ public:
 			break;
 			}
 
-			++spin_count;	// spin 증가
 		}
 	}
 };
 struct EliminationArray
 {
+	static constexpr std::chrono::nanoseconds duration{ 1000 };
+
 	std::vector<LockFreeExchager> exchager;
 
 public:
@@ -611,7 +612,7 @@ public:
 	int visit(int value, int range)
 	{
 		int slot = rand() % range;	// range는 capacity 이하여야 할 것
-		return (exchager[slot].exchange(value, origin_range.current_spin));
+		return (exchager[slot].exchange(value, duration));
 	}
 
 };
