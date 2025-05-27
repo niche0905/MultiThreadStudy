@@ -8,7 +8,7 @@
 #include <unordered_set>
 
 constexpr int CACHE_LINE_SIZE = 64;		// 캐시라인 크기 (Cache Thrasing 방지)
-constexpr int MAX_THREADS = 64;			// 최대 스레드 수
+constexpr int MAX_THREADS = 16;			// 최대 스레드 수
 
 const int NUM_TEST = 10000000;
 
