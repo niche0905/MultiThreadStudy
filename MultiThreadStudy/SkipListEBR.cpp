@@ -877,8 +877,7 @@ void benchmark(const int num_thread, int _thread_id)
 	thread_id = _thread_id;
 
 	int key;
-
-	for (int i = 0; i < NUM_TEST / num_thread; i++) {
+	while (true) {
 		switch (rand() % 3) {
 		case 0: key = rand() % KEY_RANGE;
 			my_set.Add(key);
@@ -893,8 +892,6 @@ void benchmark(const int num_thread, int _thread_id)
 			exit(-1);
 		}
 	}
-
-	//ebr.Clear();	// 이것이 메모리 릭이였다 => thread_local이여서 clear가 되었음
 }
 
 
@@ -904,43 +901,40 @@ int main()
 
 	// 오류 검사 부분
 	{
-		for (int n = 1; n <= MAX_THREAD; n = n * 2) {
-			for (auto& v : history)
-				v.clear();
-			std::vector<std::thread> tv;
-			auto start_t = high_resolution_clock::now();
-			for (int i = 0; i < n; ++i) {
-				tv.emplace_back(worker_check, n, i);
-			}
-			for (auto& th : tv)
-				th.join();
-			auto end_t = high_resolution_clock::now();
-			auto exec_t = end_t - start_t;
-			size_t ms = duration_cast<milliseconds>(exec_t).count();
-			std::cout << n << " Threads,  " << ms << "ms.";
-			check_history(n);
-			my_set.Clear();
-		}
+		//for (int n = 1; n <= MAX_THREAD; n = n * 2) {
+		//	for (auto& v : history)
+		//		v.clear();
+		//	std::vector<std::thread> tv;
+		//	auto start_t = high_resolution_clock::now();
+		//	for (int i = 0; i < n; ++i) {
+		//		tv.emplace_back(worker_check, n, i);
+		//	}
+		//	for (auto& th : tv)
+		//		th.join();
+		//	auto end_t = high_resolution_clock::now();
+		//	auto exec_t = end_t - start_t;
+		//	size_t ms = duration_cast<milliseconds>(exec_t).count();
+		//	std::cout << n << " Threads,  " << ms << "ms.";
+		//	check_history(n);
+		//	my_set.Clear();
+		//}
 	}
 
 	// 실제 성능 측정
-	for (int j = 0; j < 100; ++j)
+	//for (int j = 0; j < 100; ++j)
 	{
-		std::cout << "Case #" << j + 1 << "\n";
+		//std::cout << "Case #" << j + 1 << "\n";
 
-		for (int n = 1; n <= MAX_THREAD; n = n * 2) {
+		//for (int n = 1; n <= MAX_THREAD; n = n * 2) 
+		{
+			int n = 16;
 			std::vector<std::thread> tv;
-			auto start_t = high_resolution_clock::now();
 			for (int i = 0; i < n; ++i) {
 				tv.emplace_back(benchmark, n, i);
 			}
 			for (auto& th : tv)
 				th.join();
 			auto end_t = high_resolution_clock::now();
-			auto exec_t = end_t - start_t;
-			size_t ms = duration_cast<milliseconds>(exec_t).count();
-			std::cout << n << " Threads,  " << ms << "ms.";
-			my_set.Print20();
 			my_set.Clear();
 		}
 
