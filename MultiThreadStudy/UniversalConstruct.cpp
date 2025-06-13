@@ -8,6 +8,8 @@
 #include <vector>
 #include <set>
 
+#include "CX/CXMutationWF.hpp"
+
 
 // 상수 정의부
 constexpr int MAX_THREADS{ 16 };
@@ -220,53 +222,57 @@ public:
 
 
 // 새로운 CX 알고리즘
-template<typename C, typename R = uint64_t>
-class CX
-{
-	struct Node
-	{
-		std::function<R(C*)> mutation;
-		std::atomic<R> result;
-		std::atomic<Node*> next{ nullptr };
-		std::atomic<uint64_t> ticket{ 0 };
-		int enqTid;
-	};
-	struct Combined
-	{
-		Node* head{ nullptr };
-		C* obj{ nullptr };
-		StrongTryRWRI rwLock{ MAX_THREADS };
-	};
-
-	std::atomic<Combined*> curComb{ nullptr };
-	std::function<R(C*)> mut0 = [](C* c) {return R{}; };
-	Node* sentinel = new Node(mut0, 0);
-	std::atomic<Node*> tail{ sentinel };
-	std::vector<Combined> combs;
-
-public:
-	CX(size_t maxThreads = MAX_THREADS) : combs(maxThreads * 2) 
-	{
-
-	}
-
-	R applyRead(std::function<R(C*)> readFunc) 
-	{
-	}
-
-	R applyUpdate(std::function<R(C*)> updateFunc) 
-	{
-	}
-};
-
+//template<typename C, typename R = uint64_t>
+//class CX
+//{
+//	struct Node
+//	{
+//		std::function<R(C*)> mutation;
+//		std::atomic<R> result;
+//		std::atomic<Node*> next{ nullptr };
+//		std::atomic<uint64_t> ticket{ 0 };
+//		int enqTid;
+//	};
+//	struct Combined
+//	{
+//		Node* head{ nullptr };
+//		C* obj{ nullptr };
+//		StrongTryRWRI rwLock{ MAX_THREADS };
+//	};
+//
+//	std::atomic<Combined*> curComb{ nullptr };
+//	std::function<R(C*)> mut0 = [](C* c) {return R{}; };
+//	Node* sentinel = new Node(mut0, 0);
+//	std::atomic<Node*> tail{ sentinel };
+//	std::vector<Combined> combs;
+//
+//public:
+//	CX(size_t maxThreads = MAX_THREADS) : combs(maxThreads * 2) 
+//	{
+//
+//	}
+//
+//	R applyRead(std::function<R(C*)> readFunc) 
+//	{
+//	}
+//
+//	R applyUpdate(std::function<R(C*)> updateFunc) 
+//	{
+//	}
+//};
 
 // 함수 전방선언
 void benchmark(int num_threads, int th_id);
 void benchmark_check(int num_threads, int th_id);
+void benchmark_forCX(int num_threads, int th_id);
 void check_history(int num_threads);
 
 // 전역변수들
 STD_LF_SET g_set;
+
+// https://github.com/pramalhe/CX 에 구현된 CX
+CXMutationWF<std::set<int>> cx{ new std::set<int>(), MAX_THREADS };
+
 std::array<std::vector<HISTORY>, 16> history;	// 에러 체크용
 
 
@@ -311,6 +317,7 @@ int main()
 
 	// 멀티스레드 벤치마크
 	{
+		/*
 		for (int t = 1; t <= 16; t *= 2) {
 			g_set.Clear();
 			std::vector<std::thread> threads;
@@ -333,7 +340,40 @@ int main()
 			std::cout << t << " threads Set = ";
 			g_set.Print20();
 		}
+		*/
+	}
 
+	// CX 벤치마크
+	{
+		for (int t = 1; t <= 16; t *= 2) {
+			cx.applyUpdate([](std::set<int>* set) { set->clear(); return true; }, 0);
+			std::vector<std::thread> threads;
+			threads.reserve(t);
+
+			auto start_t = system_clock::now();
+
+			for (int i = 0; i < t; ++i) {
+				threads.emplace_back(benchmark_forCX, t, i);
+			}
+
+			for (int i = 0; i < t; ++i) {
+				threads[i].join();
+			}
+
+			auto end_t = system_clock::now();
+			auto exec_t = end_t - start_t;
+			auto exec_ms = duration_cast<milliseconds>(exec_t).count();
+			std::cout << "Exec time = " << exec_ms << "ms. ";
+			std::cout << t << " threads Set = ";
+			cx.applyRead([](std::set<int>* set) {
+				int count = 20;
+				for (auto x : *set) {
+					if (count-- == 0) break;
+					std::cout << x << ", ";
+				}
+				std::cout << '\n';
+				return true; }, 0);
+		}
 	}
 }
 
@@ -388,6 +428,33 @@ void benchmark_check(int num_threads, int th_id)
 			history[th_id].emplace_back(2, v, g_set.Contains(v));
 			break;
 		}
+		}
+	}
+}
+void benchmark_forCX(int num_threads, int th_id)
+{
+	thread_id = th_id;
+
+	int key;
+	const int num_loop = NUM_TEST / num_threads;
+
+	for (int i = 0; i < num_loop; i++) {
+		switch (rand() % 3) {
+		case 0:
+			key = rand() % KEY_RANGE;
+			cx.applyUpdate([key](std::set<int>* set) { return set->insert(key).second; }, thread_id);
+			break;
+		case 1:
+			key = rand() % KEY_RANGE;
+			cx.applyUpdate([key](std::set<int>* set) { bool result = (set->count(key) != 0); if (result) set->erase(key); return result; }, thread_id);
+			break;
+		case 2:
+			key = rand() % KEY_RANGE;
+			cx.applyRead([key](std::set<int>* set) { return (set->count(key) != 0); }, thread_id);
+			break;
+		default:
+			std::cout << "Error\n";
+			exit(-1);
 		}
 	}
 }
