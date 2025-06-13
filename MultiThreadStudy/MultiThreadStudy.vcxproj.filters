@@ -30,5 +30,6 @@
     <ClCompile Include="ExCode.cpp">
       <Filter>EliminationStack</Filter>
     </ClCompile>
+    <ClCompile Include="UniversalConstruct.cpp" />
   </ItemGroup>
 </Project>
