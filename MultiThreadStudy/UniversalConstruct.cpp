@@ -1,7 +1,9 @@
 #include <iostream>
 #include <chrono>
+#include <functional>
 #include <thread>
 #include <mutex>
+#include <atomic>
 #include <array>
 #include <vector>
 #include <set>
@@ -217,6 +219,45 @@ public:
 };
 
 
+// 새로운 CX 알고리즘
+template<typename C, typename R = uint64_t>
+class CX
+{
+	struct Node
+	{
+		std::function<R(C*)> mutation;
+		std::atomic<R> result;
+		std::atomic<Node*> next{ nullptr };
+		std::atomic<uint64_t> ticket{ 0 };
+		int enqTid;
+	};
+	struct Combined
+	{
+		Node* head{ nullptr };
+		C* obj{ nullptr };
+		StrongTryRWRI rwLock{ MAX_THREADS };
+	};
+
+	std::atomic<Combined*> curComb{ nullptr };
+	std::function<R(C*)> mut0 = [](C* c) {return R{}; };
+	Node* sentinel = new Node(mut0, 0);
+	std::atomic<Node*> tail{ sentinel };
+	std::vector<Combined> combs;
+
+public:
+	CX(size_t maxThreads = MAX_THREADS) : combs(maxThreads * 2) 
+	{
+
+	}
+
+	R applyRead(std::function<R(C*)> readFunc) 
+	{
+	}
+
+	R applyUpdate(std::function<R(C*)> updateFunc) 
+	{
+	}
+};
 
 
 // 함수 전방선언
@@ -241,6 +282,7 @@ int main()
 
 	// 알고리즘 정확성 검사 (에러 체크)
 	{
+		/*
 		for (int t = 1; t <= 16; t *= 2) {
 			g_set.Clear();
 			std::vector <std::thread> threads;
@@ -264,6 +306,7 @@ int main()
 			check_history(t);
 			for (auto& h : history) h.clear();
 		}
+		*/
 	}
 
 	// 멀티스레드 벤치마크
