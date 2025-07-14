@@ -19,6 +19,12 @@ constexpr int INF{ std::numeric_limits<int>::max() };
 
 thread_local int thread_id;
 
+thread_local unsigned long long g_next = 1;
+int rand_mt()
+{
+	g_next = g_next * 1103515245 + 12345;
+	return((unsigned)(g_next / 65536) % 32768);
+}
 
 class HISTORY {
 public:
@@ -387,17 +393,17 @@ void benchmark(int num_threads, int th_id)
 	const int num_loop = NUM_TEST / num_threads;
 
 	for (int i = 0; i < num_loop; i++) {
-		switch (rand() % 3) {
+		switch (rand_mt() % 3) {
 		case 0:
-			key = rand() % KEY_RANGE;
+			key = rand_mt() % KEY_RANGE;
 			g_set.Add(key);
 			break;
 		case 1:
-			key = rand() % KEY_RANGE;
+			key = rand_mt() % KEY_RANGE;
 			g_set.Remove(key);
 			break;
 		case 2:
-			key = rand() % KEY_RANGE;
+			key = rand_mt() % KEY_RANGE;
 			g_set.Contains(key);
 			break;
 		default:
@@ -411,20 +417,20 @@ void benchmark_check(int num_threads, int th_id)
 	thread_id = th_id;
 
 	for (int i = 0; i < NUM_TEST / num_threads; ++i) {
-		int op = rand() % 3;
+		int op = rand_mt() % 3;
 		switch (op) {
 		case 0: {
-			int v = rand() % KEY_RANGE;
+			int v = rand_mt() % KEY_RANGE;
 			history[th_id].emplace_back(0, v, g_set.Add(v));
 			break;
 		}
 		case 1: {
-			int v = rand() % KEY_RANGE;
+			int v = rand_mt() % KEY_RANGE;
 			history[th_id].emplace_back(1, v, g_set.Remove(v));
 			break;
 		}
 		case 2: {
-			int v = rand() % KEY_RANGE;
+			int v = rand_mt() % KEY_RANGE;
 			history[th_id].emplace_back(2, v, g_set.Contains(v));
 			break;
 		}
@@ -439,17 +445,17 @@ void benchmark_forCX(int num_threads, int th_id)
 	const int num_loop = NUM_TEST / num_threads;
 
 	for (int i = 0; i < num_loop; i++) {
-		switch (rand() % 3) {
+		switch (rand_mt() % 3) {
 		case 0:
-			key = rand() % KEY_RANGE;
+			key = rand_mt() % KEY_RANGE;
 			cx.applyUpdate([key](std::set<int>* set) { return set->insert(key).second; }, thread_id);
 			break;
 		case 1:
-			key = rand() % KEY_RANGE;
+			key = rand_mt() % KEY_RANGE;
 			cx.applyUpdate([key](std::set<int>* set) { bool result = (set->count(key) != 0); if (result) set->erase(key); return result; }, thread_id);
 			break;
 		case 2:
-			key = rand() % KEY_RANGE;
+			key = rand_mt() % KEY_RANGE;
 			cx.applyRead([key](std::set<int>* set) { return (set->count(key) != 0); }, thread_id);
 			break;
 		default:
