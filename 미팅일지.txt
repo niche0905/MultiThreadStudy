@@ -332,3 +332,21 @@ int main()
  - 7월 14일 월요일 오후 3시
  - 위의 논문을 읽고 최적화를 위해 어떠헌 기법을 사용했는지 정리해 올것.
  - Lock-Free SET이 Linux에서 왜 성능이 떨어지는지 알아보자.
+ 
+2025-07-14
+-------------
+1.  “A Wait Free Universal Construct for Large Objects”,
+ - READ Method는 로그에 추가할 필요가 없음
+ - 로그를 처음부터 보관해서 사용하는 것이 아니라. 일정 부분에서 CUT하고 그 부분까지의 로그는 실제 객체로 대체, 보관하는 로그는 Queue로 구현
+   * 로그 Queue의 노드는 Reference Counter로 관리하고, Hazard Pointer를 사용해서 병렬 메모리 재사용 문제를 해결
+   * 실제 객체를 공유하면서 생기는 문제는 복수개의  실제 객체를 사용해서 해결.
+     => 2N개의 객체를 사용해서 Read 시의 충돌을 피함 ( RW Lock을 사용하지만 충돌은 극히 적음, Lock Downgrade 기능 활용)
+  => 결론은 싱글쓰레드 버전보다 빨라지기 어렵다.... (Read Method가 많을 경우 빨라질 수 있지만.... 어차피 RW Lock쓰면 마찬가지 아닌가????)
+ - RW lock을 사용했지만 Wait-Free
+
+2. Lock-Free SET이 Linux에서 왜 성능이 떨이지는가?
+ - DeskTOP PC에서 WSL을 사용했을 때는 성능 저하가 없다. 아마 NUMA로 인한 성능저하가 아닐까?
+ - taskset 명령어를 사용해서 실행해도 성능저하가 발견된다 Windows에서 WSL로 실행했을 때는 성능저하가 없다.... 왜???
+   * NUMA machine에 Windows를 깔고 WSL에서 한번 테스트해 봐야 할듯.....
+
+3. 학부 연구생 종료.
